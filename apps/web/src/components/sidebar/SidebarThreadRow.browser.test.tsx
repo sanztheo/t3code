@@ -10,9 +10,13 @@ import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
+import appCss from "../../index.css?inline";
 import { fakeTimers, render } from "../../../test/render";
+import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { makeThreadFixture } from "../../test-fixtures";
 import { SortableThreadRow, type SidebarProviderEntry } from "./SidebarThreadRow";
+
+vi.mock("../../state/session", { spy: true });
 
 const environmentId = EnvironmentId.make("local");
 const instanceId = ProviderInstanceId.make("claudeAgent");
@@ -114,11 +118,15 @@ function rowProps(overrides: Partial<RowProps>): RowProps {
   };
 }
 
-function renderRow(overrides: Partial<RowProps> = {}) {
+function renderRow(overrides: Partial<RowProps> = {}, options?: Parameters<typeof render>[1]) {
+  // The user may operate every thread, so a missing action is the row's choice, not a missing permission.
+  vi.mocked(useEnvironmentScope).mockReturnValue(true);
+  vi.mocked(readEnvironmentScope).mockReturnValue(true);
   return render(
     <ul>
       <SortableThreadRow {...rowProps(overrides)} />
     </ul>,
+    options,
   );
 }
 
@@ -136,12 +144,22 @@ describe("sidebar child row", () => {
     expect(screen.getByText(projectDisplayName).query()).toBeNull();
   });
 
-  it.each(["settle", "unsettle"] as const)(
-    "child row offers no lifecycle actions on hover (%s section)",
-    async (variantAction) => {
+  it.each([
+    { variant: "child", variantAction: "settle", offered: [] },
+    { variant: "child", variantAction: "unsettle", offered: [] },
+    // Control: the same setup on a folder row offers them, so the child's absences can fail.
+    {
+      variant: "folder-multiline",
+      variantAction: "settle",
+      offered: ["Settle thread", "Unpin thread"],
+    },
+  ] as const)(
+    "$variant row in the $variantAction section offers lifecycle actions: $offered",
+    async ({ variant, variantAction, offered }) => {
       const onStartRename = vi.fn();
-      // Even an environment that supports every lifecycle gets none on a child.
+      // An environment that supports every lifecycle still gives a child none.
       await using screen = await renderRow({
+        variant,
         variantAction,
         settlementSupported: true,
         snoozeSupported: true,
@@ -153,11 +171,46 @@ describe("sidebar child row", () => {
       await userEvent.hover(title);
 
       for (const name of ["Settle thread", "Snooze thread", "Un-settle thread", "Unpin thread"]) {
-        expect(screen.getByRole("button", { name }).query(), name).toBeNull();
+        const button = screen.getByRole("button", { name }).query();
+        if ((offered as readonly string[]).includes(name)) expect(button, name).not.toBeNull();
+        else expect(button, name).toBeNull();
       }
-      await expect.element(screen.getByText("Working", { exact: false })).toBeVisible();
+      if (variant === "child") {
+        await expect.element(screen.getByText("Working", { exact: false })).toBeVisible();
+      }
       await userEvent.dblClick(title);
-      expect(onStartRename).not.toHaveBeenCalled();
+      screen.container.querySelector<HTMLElement>("[data-sidebar-row]")!.focus();
+      await userEvent.keyboard("{F2}");
+      expect(onStartRename).toHaveBeenCalledTimes(variant === "child" ? 0 : 2);
+    },
+  );
+
+  it.each(["card", "child"] as const)(
+    "%s row truncates a long model name and keeps the branch visible",
+    async (variant) => {
+      using stack = new DisposableStack();
+      const style = document.createElement("style");
+      style.textContent = appCss;
+      document.head.append(style);
+      stack.defer(() => style.remove());
+      // The default sidebar width (16rem); an unlisted model shows its raw id.
+      const container = document.createElement("div");
+      container.style.width = "256px";
+      const thread = {
+        ...runningSubagent("Agent voix : urgence transmise"),
+        modelSelection: { instanceId, model: "accounts/fireworks/models/qwen3-coder-480b-a35b" },
+      };
+      await using screen = await renderRow({ variant, thread }, { container });
+
+      const label = screen.getByText("accounts/fireworks", { exact: false });
+      await expect.element(label).toBeInTheDocument();
+      const row = screen.container.querySelector<HTMLElement>("[data-sidebar-row]")!;
+      expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth);
+      expect(label.element().scrollWidth).toBeGreaterThan(label.element().clientWidth);
+      // The branch is the meta line's flexible span; before the fix it shrank to 0px.
+      const branch = label.element().closest("div")!.querySelector(":scope > span.flex-1")!;
+      expect(branch.textContent).toContain("voice");
+      expect(branch.getBoundingClientRect().width).toBeGreaterThan(40);
     },
   );
 
