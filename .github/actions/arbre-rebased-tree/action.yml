@@ -1,0 +1,34 @@
+name: Arbre rebased tree
+description: >-
+  Turn the checkout into upstream main plus the arbre patch that the daily
+  sync job rebased onto it. The rebase is never pushed (the workflow token
+  cannot push workflow files), so every job of the run rebuilds the same tree.
+inputs:
+  upstream-sha:
+    description: The upstream main commit the patch was rebased onto.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Download the rebased patch
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: arbre-patch
+        path: ${{ runner.temp }}/arbre-patch
+
+    - name: Apply the patch to upstream main
+      shell: bash
+      env:
+        UPSTREAM_SHA: ${{ inputs.upstream-sha }}
+      run: |
+        set -euo pipefail
+        git fetch --no-tags --depth=1 https://github.com/pingdotgg/t3code.git "$UPSTREAM_SHA"
+        git checkout --detach FETCH_HEAD
+        shopt -s nullglob
+        patches=("$RUNNER_TEMP"/arbre-patch/*.patch)
+        if (( ${#patches[@]} > 0 )); then
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            am "${patches[@]}"
+        fi
+        git log --oneline -n "$(( ${#patches[@]} + 1 ))"
