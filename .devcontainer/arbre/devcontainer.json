@@ -1,0 +1,13 @@
+// Codespace for the `arbre` fork branch. The main devcontainer mounts Docker
+// volumes that Codespaces creates root-owned, so its on-create script fails
+// there; this one has no mounts and installs dependencies on demand.
+{
+  "name": "T3 Code (arbre)",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "26"
+    }
+  },
+  "remoteUser": "vscode"
+}
