@@ -94,6 +94,25 @@ describe("buildSidebarChildTree", () => {
     expect(build([parent, child]).get(key(parent))).toBeUndefined();
   });
 
+  it("keeps a child that awaits its own background command between turns", () => {
+    const parent = makeShell("parent");
+    const shell = makeShell("child", { parent: "parent", status: "completed" });
+    // Observed: the run ended while the child waits on its bench, so no activity run.
+    const child: EnvironmentThreadShell = {
+      ...shell,
+      source: {
+        ...shell.source,
+        status: "waiting",
+        activityRunStatus: null,
+        pendingBackgroundTasks: [{ taskId: "bench", kind: "command", awaited: true }],
+      },
+    };
+
+    expect(build([parent, child]).get(key(parent))?.map((node) => node.key)).toEqual([
+      key(child),
+    ]);
+  });
+
   it("keeps the route child after it ends", () => {
     const parent = makeShell("parent");
     const child = makeShell("child", { parent: "parent", status: "completed" });
