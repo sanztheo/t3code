@@ -36,12 +36,10 @@ function directParentKey(thread: EnvironmentThreadShell): string | null {
 }
 
 /**
- * The live children to show under each listed thread, flattened in display order.
- * Live is the lineage panel's « running »: a child between turns while it awaits its own
- * background command, or waiting on the user, still holds its parent.
- * An ended child leaves the tree, unless the route opens it or a descendant is still
- * live. A child whose chain never reaches a listed thread (archived or missing parent,
- * cycle) is left out.
+ * The live children under each listed thread, in display order; live is the lineage
+ * panel's « running », background waits included. An ended child stays only while the
+ * route opens it or a descendant is live. A chain that never reaches a listed thread
+ * (archived or missing parent, cycle) is left out.
  */
 export function buildSidebarChildTree(input: {
   readonly threads: readonly EnvironmentThreadShell[];
