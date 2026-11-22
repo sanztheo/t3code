@@ -2,6 +2,7 @@ import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/model
 import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import type { ContextMenuItem } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
+import { useMemo } from "react";
 
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import type { ThreadActionMenuId } from "../threadActionMenu.logic";
@@ -54,20 +55,24 @@ export function useSidebarChildRows(input: {
   readonly delegatedUnderParent: ReadonlySet<string>;
   readonly routeThreadKey: string | null;
 }) {
-  const tree = buildSidebarChildTree({
-    threads: input.threads,
-    delegatedUnderParent: input.delegatedUnderParent,
-    keepVisibleKey: input.routeThreadKey,
-  });
+  // The sidebar re-renders far more often than its threads change.
+  const { tree, childThreadByKey } = useMemo(() => {
+    const tree = buildSidebarChildTree({
+      threads: input.threads,
+      delegatedUnderParent: input.delegatedUnderParent,
+      keepVisibleKey: input.routeThreadKey,
+    });
+    const childThreadByKey = new Map<string, EnvironmentThreadShell>();
+    for (const nodes of tree.values()) {
+      for (const node of nodes) childThreadByKey.set(node.key, node.thread);
+    }
+    return { tree, childThreadByKey };
+  }, [input.threads, input.delegatedUnderParent, input.routeThreadKey]);
   const [collapsedParentKeys, setCollapsedParentKeys] = useLocalStorage(
     SIDEBAR_COLLAPSED_PARENTS_KEY,
     NO_COLLAPSED_PARENTS,
     COLLAPSED_PARENTS_SCHEMA,
   );
-  const childThreadByKey = new Map<string, EnvironmentThreadShell>();
-  for (const nodes of tree.values()) {
-    for (const node of nodes) childThreadByKey.set(node.key, node.thread);
-  }
   const isExpanded = (parentKey: string) => !collapsedParentKeys.includes(parentKey);
   const shownChildrenOf = (parentKey: string) =>
     isExpanded(parentKey) ? (tree.get(parentKey) ?? NO_CHILDREN) : NO_CHILDREN;
