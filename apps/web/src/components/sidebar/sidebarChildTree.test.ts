@@ -124,13 +124,14 @@ describe("buildSidebarChildTree", () => {
     ).toEqual([key(child)]);
   });
 
-  it("moves a live grandchild up when its parent ended", () => {
+  it("keeps an ended child while its own child is live", () => {
     const parent = makeShell("parent");
     const child = makeShell("child", { parent: "parent", status: "completed" });
     const grandchild = makeShell("grandchild", { parent: "child", status: "running" });
 
     expect(withoutThread(build([parent, child, grandchild]).get(key(parent)))).toEqual([
-      { key: key(grandchild), depth: 1, isLast: true, lineContinues: [] },
+      { key: key(child), depth: 1, isLast: true, lineContinues: [] },
+      { key: key(grandchild), depth: 2, isLast: true, lineContinues: [false] },
     ]);
   });
 

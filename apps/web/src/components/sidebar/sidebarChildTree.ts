@@ -39,9 +39,9 @@ function directParentKey(thread: EnvironmentThreadShell): string | null {
  * The live children to show under each listed thread, flattened in display order.
  * Live is the lineage panel's « running »: a child between turns while it awaits its own
  * background command, or waiting on the user, still holds its parent.
- * An ended child leaves the tree, except the one the route opens, and its live
- * descendants move up to the nearest shown ancestor. A child whose chain never reaches
- * a listed thread (archived or missing parent, cycle) is left out.
+ * An ended child leaves the tree, unless the route opens it or a descendant is still
+ * live. A child whose chain never reaches a listed thread (archived or missing parent,
+ * cycle) is left out.
  */
 export function buildSidebarChildTree(input: {
   readonly threads: readonly EnvironmentThreadShell[];
@@ -63,35 +63,35 @@ export function buildSidebarChildTree(input: {
     }
   }
 
-  const isShown = (key: string, thread: EnvironmentThreadShell) =>
-    isLiveSubagentShell(thread.source) || key === input.keepVisibleKey;
-
-  // Climbs past hidden children to the nearest listed or shown ancestor.
-  const shownParentKey = (key: string, thread: EnvironmentThreadShell): string | null => {
-    const visited = new Set([key]);
-    let parentKey = directParentKey(thread);
-    while (parentKey !== null && !visited.has(parentKey)) {
-      if (listedKeys.has(parentKey)) return parentKey;
-      const parent = childByKey.get(parentKey);
-      if (parent === undefined) return null;
-      if (isShown(parentKey, parent)) return parentKey;
-      visited.add(parentKey);
-      parentKey = directParentKey(parent);
-    }
-    return null;
-  };
-
   const childrenByParent = new Map<
     string,
     Array<{ key: string; thread: EnvironmentThreadShell }>
   >();
   for (const [key, thread] of childByKey) {
-    if (!isShown(key, thread)) continue;
-    const parentKey = shownParentKey(key, thread);
+    const parentKey = directParentKey(thread);
     if (parentKey === null) continue;
     const siblings = childrenByParent.get(parentKey);
     if (siblings === undefined) childrenByParent.set(parentKey, [{ key, thread }]);
     else siblings.push({ key, thread });
+  }
+
+  // An ended child stays while a descendant is live, so that descendant keeps its real
+  // parent rather than showing under an ancestor that never started it.
+  const shownByKey = new Map<string, boolean>();
+  const isShown = (key: string, thread: EnvironmentThreadShell): boolean => {
+    const known = shownByKey.get(key);
+    if (known !== undefined) return known;
+    // A cycle back to this child counts as not shown, which ends the walk.
+    shownByKey.set(key, false);
+    const shown =
+      isLiveSubagentShell(thread.source) ||
+      key === input.keepVisibleKey ||
+      (childrenByParent.get(key) ?? []).some((child) => isShown(child.key, child.thread));
+    shownByKey.set(key, shown);
+    return shown;
+  };
+  for (const [parentKey, siblings] of childrenByParent) {
+    childrenByParent.set(parentKey, siblings.filter((child) => isShown(child.key, child.thread)));
   }
   for (const siblings of childrenByParent.values()) {
     siblings.sort(
