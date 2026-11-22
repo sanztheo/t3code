@@ -108,9 +108,11 @@ describe("buildSidebarChildTree", () => {
       },
     };
 
-    expect(build([parent, child]).get(key(parent))?.map((node) => node.key)).toEqual([
-      key(child),
-    ]);
+    expect(
+      build([parent, child])
+        .get(key(parent))
+        ?.map((node) => node.key),
+    ).toEqual([key(child)]);
   });
 
   it("keeps the route child after it ends", () => {
