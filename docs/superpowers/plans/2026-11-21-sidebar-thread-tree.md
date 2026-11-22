@@ -46,20 +46,23 @@
 ### Task 1: Live child tree (pure logic)
 
 **Files:**
+
 - Modify: `packages/client-runtime/src/state/threadShell.ts:50` (export the existing `isChildRunLive`, no behavior change)
 - Create: `apps/web/src/components/sidebar/sidebarChildTree.ts`
 - Test: `apps/web/src/components/sidebar/sidebarChildTree.test.ts`
 
 **Interfaces:**
+
 - Consumes: `EnvironmentThreadShell`, `isShownUnderParent`, `threadKey`, now-exported `isChildRunLive` from `@t3tools/client-runtime/state/threadShell`, `scopedThreadKey`/`scopeThreadRef` as used in `Sidebar.tsx:1965`.
 - Produces:
+
   ```ts
   export const SIDEBAR_CHILD_MAX_DEPTH = 3;
   export interface SidebarChildNode {
     readonly thread: EnvironmentThreadShell;
-    readonly key: string;          // scopedThreadKey of the child
+    readonly key: string; // scopedThreadKey of the child
     readonly depth: 1 | 2 | 3;
-    readonly isLast: boolean;      // last sibling at its depth → └
+    readonly isLast: boolean; // last sibling at its depth → └
     readonly lineContinues: readonly boolean[]; // per ancestor depth: draw the vertical line through this row
   }
   export function buildSidebarChildTree(input: {
@@ -97,10 +100,12 @@
 ### Task 2: `"child"` row variant and model label
 
 **Files:**
+
 - Modify: `apps/web/src/components/sidebar/SidebarThreadRow.tsx` (variant union at `:579`, action slot at `:1461-1520` and `:1665`, line-3 metadata around `:300-380`)
 - Test: `apps/web/src/components/sidebar/SidebarThreadRow.browser.test.tsx` (create; copy the render harness from `apps/web/src/components/Sidebar.browser.test.tsx`)
 
 **Interfaces:**
+
 - Consumes: nothing from Task 1.
 - Produces: `variant: "card" | "slim" | "folder" | "folder-multiline" | "child"` on the row props, plus a new optional prop `childConnector?: { depth: 1 | 2 | 3; isLast: boolean; lineContinues: readonly boolean[] }`. Rows with `variant: "child"` must be rendered with `settlementSupported={false}`, `snoozeSupported={false}`, `sortableDisabled`.
 
@@ -121,11 +126,13 @@
 ### Task 3: Render children in the sidebar, with collapse
 
 **Files:**
+
 - Modify: `apps/web/src/components/Sidebar.tsx` (state near the shelf `useLocalStorage` calls `:461-476`, `renderThreadRow` `:3447`, list loop `:3583`)
 - Create: `apps/web/src/components/sidebar/SidebarChildToggle.tsx` (chevron + collapsed chip)
 - Test: `apps/web/src/components/Sidebar.browser.test.tsx` (add cases)
 
 **Interfaces:**
+
 - Consumes: `buildSidebarChildTree`, `SidebarChildNode` (Task 1); `variant: "child"`, `childConnector` (Task 2).
 - Produces: `SIDEBAR_COLLAPSED_PARENTS_KEY = "t3code:sidebar-collapsed-parents:v1"` (exported from `sidebarChildTree.ts`) and `SidebarChildToggle(props: { count: number; anyWorking: boolean; expanded: boolean; onToggle: () => void })`.
 
@@ -153,11 +160,13 @@
 ### Task 4: Daily build of Sanz's app, and the install script
 
 **Files:**
+
 - Create: `.github/workflows/arbre-daily.yml`
 - Create: `scripts/arbre-install.sh`
 - Modify: the electron-builder `publish` / updater config of `apps/desktop`, to disable the auto-updater when `T3_ARBRE_BUILD=1` (find the `autoUpdater` call with `rg -n "autoUpdater" apps/desktop`)
 
 **Interfaces:**
+
 - Consumes: branch `arbre` from Tasks 1-3; the upstream reusable workflow `.github/workflows/release-desktop.yml` (`workflow_call`: read its `inputs:`, it already signs ad hoc when `CSC_LINK` is missing, see `:400`).
 - Produces: a GitHub release on `sanztheo/t3code` tagged `arbre-YYYYMMDD` with `T3-Code-*-arm64.dmg`, and `scripts/arbre-install.sh` that installs the latest one.
 
