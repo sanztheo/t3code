@@ -90,10 +90,8 @@ function rowProps(overrides: Partial<RowProps>): RowProps {
     isRouteThread: false,
     readOpensPullRequestsInRightPanel: () => false,
     jumpLabel: null,
-    currentEnvironmentId: environmentId,
     environmentLabel: null,
     environmentMachine: "server",
-    scratchMachineLabel: null,
     project: null,
     projectDisplayName,
     providerEntryByInstanceId: new Map([[instanceId, claudeEntry]]),
@@ -186,7 +184,7 @@ describe("sidebar child row", () => {
   );
 
   it.each(["card", "child"] as const)(
-    "%s row truncates a long model name and keeps the branch visible",
+    "%s row truncates a long model name and keeps the environment visible",
     async (variant) => {
       using stack = new DisposableStack();
       const style = document.createElement("style");
@@ -200,17 +198,23 @@ describe("sidebar child row", () => {
         ...runningSubagent("Agent voix : urgence transmise"),
         modelSelection: { instanceId, model: "accounts/fireworks/models/qwen3-coder-480b-a35b" },
       };
-      await using screen = await renderRow({ variant, thread }, { container });
+      await using screen = await renderRow(
+        { variant, thread, environmentLabel: "Codespace voix" },
+        { container },
+      );
 
       const label = screen.getByText("accounts/fireworks", { exact: false });
       await expect.element(label).toBeInTheDocument();
       const row = screen.container.querySelector<HTMLElement>("[data-sidebar-row]")!;
       expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth);
       expect(label.element().scrollWidth).toBeGreaterThan(label.element().clientWidth);
-      // The branch is the meta line's flexible span; before the fix it shrank to 0px.
-      const branch = label.element().closest("div")!.querySelector(":scope > span.flex-1")!;
-      expect(branch.textContent).toContain("voice");
-      expect(branch.getBoundingClientRect().width).toBeGreaterThan(40);
+      // The environment is the meta line's flexible span; before the fix it shrank to 0px.
+      const environment = label
+        .element()
+        .closest("div")!
+        .querySelector(":scope > span.flex-1")!;
+      expect(environment.textContent).toContain("Codespace voix");
+      expect(environment.getBoundingClientRect().width).toBeGreaterThan(40);
     },
   );
 
