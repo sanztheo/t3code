@@ -89,7 +89,10 @@ export function buildSidebarChildTree(input: {
     return shown;
   };
   for (const [parentKey, siblings] of childrenByParent) {
-    childrenByParent.set(parentKey, siblings.filter((child) => isShown(child.key, child.thread)));
+    childrenByParent.set(
+      parentKey,
+      siblings.filter((child) => isShown(child.key, child.thread)),
+    );
   }
   for (const siblings of childrenByParent.values()) {
     siblings.sort(
