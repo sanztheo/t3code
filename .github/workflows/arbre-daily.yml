@@ -7,10 +7,9 @@ name: Arbre daily build
 # installed build updates itself to the next one.
 
 on:
-  # Upstream publishes several nightlies a day; a run with nothing new stops
-  # after the sync job.
-  schedule:
-    - cron: "0 */3 * * *"
+  # No schedule: GitHub turned this workflow off about 30 minutes after every
+  # enable while it had one (2026-11-22, no event in the security log). It is
+  # dispatched from outside; a run with nothing new stops after the sync job.
   workflow_dispatch:
     inputs:
       force:
