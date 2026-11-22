@@ -1,0 +1,107 @@
+name: Arbre CI
+
+# Proof loop for the `arbre` patch branch of the sanztheo/t3code fork. Upstream
+# CI runs on Blacksmith runners a fork cannot use, so this runs the same checks
+# on a standard GitHub-hosted runner.
+
+on:
+  push:
+    branches:
+      - arbre
+  workflow_dispatch:
+    inputs:
+      tests:
+        description: Space-separated test paths from the repo root. Empty runs the arbre tests.
+        required: false
+        default: ""
+      checks:
+        description: Also run typecheck, lint and format check.
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arbre-ci-${{ github.ref }}-${{ inputs.tests }}
+  cancel-in-progress: true
+
+env:
+  # The tests that guard the patch. A file that does not exist yet is skipped,
+  # so the same workflow proves each task as it lands.
+  ARBRE_TESTS: >-
+    apps/web/src/components/sidebar/sidebarChildTree.test.ts
+    apps/web/src/components/sidebar/SidebarThreadRow.browser.test.tsx
+    apps/web/src/components/Sidebar.browser.test.tsx
+    apps/web/src/components/Sidebar.logic.test.ts
+    packages/client-runtime/src/state/threadShell.test.ts
+
+jobs:
+  check:
+    name: Tests, typecheck, lint, format
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+            !/apps/mobile/modules/t3-terminal/Vendor/**/*.a
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Vite+
+        uses: ./.github/actions/setup-ci-deps
+
+      - name: Resolve Playwright version
+        id: playwright_version
+        run: echo "version=$(node -p "require('./apps/web/node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: chromium_cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
+
+      - name: Install Chromium for web browser tests
+        if: steps.chromium_cache.outputs.cache-hit != 'true'
+        run: node apps/web/node_modules/playwright/cli.js install --only-shell chromium
+
+      - name: Install missing Chromium system dependencies
+        run: |
+          browser=$(find "$HOME/.cache/ms-playwright" -name chrome-headless-shell -type f -print -quit)
+          test -n "$browser"
+          if ldd "$browser" | grep '=> not found'; then
+            node apps/web/node_modules/playwright/cli.js install-deps chromium
+          fi
+
+      - name: Test
+        env:
+          REQUESTED_TESTS: ${{ inputs.tests }}
+        run: |
+          tests=()
+          for file in ${REQUESTED_TESTS:-$ARBRE_TESTS}; do
+            if [[ -f "$file" ]]; then
+              tests+=("$file")
+            elif [[ -n "$REQUESTED_TESTS" ]]; then
+              echo "Requested test file does not exist: $file" >&2
+              exit 1
+            fi
+          done
+          test "${#tests[@]}" -gt 0
+          vp test run "${tests[@]}"
+
+      - name: Typecheck
+        if: ${{ !cancelled() && inputs.checks != false }}
+        run: vp run typecheck
+
+      - name: Lint
+        if: ${{ !cancelled() && inputs.checks != false }}
+        run: vp run lint
+
+      - name: Format check
+        if: ${{ !cancelled() && inputs.checks != false }}
+        run: vp run fmt:check
