@@ -1,0 +1,431 @@
+name: Arbre daily build
+
+# Sanz's T3 Code: upstream main with the `arbre` patch rebased on top, built
+# as a self-signed macOS arm64 app and published as a nightly-channel
+# prerelease of this fork. The app's updater reads this fork's releases
+# (build-desktop-artifact.ts derives its feed from GITHUB_REPOSITORY), so each
+# installed build updates itself to the next one.
+
+on:
+  # Upstream publishes several nightlies a day; a run with nothing new stops
+  # after the sync job.
+  schedule:
+    - cron: "0 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build even when neither upstream main nor arbre moved since the last release.
+        type: boolean
+        default: false
+      update_proof:
+        description: After publishing, check that the previous arbre build updates itself to this one.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Two runs publishing at once would race on the update feed and the pruning.
+concurrency:
+  group: arbre-daily
+  cancel-in-progress: false
+
+env:
+  # Only the release's own tags count as arbre builds: the fork also carries
+  # upstream's nightly tags, which have no release here.
+  ARBRE_TAG_PATTERN: '^v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[0-9]+$'
+
+jobs:
+  sync:
+    name: Rebase on upstream main
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      build: ${{ steps.changes.outputs.build }}
+      previous_tag: ${{ steps.changes.outputs.previous_tag }}
+      upstream_sha: ${{ steps.upstream.outputs.sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/.repos/
+            !/apps/mobile/modules/t3-terminal/Vendor/**/*.a
+          sparse-checkout-cone-mode: false
+
+      # Upstream is a second promisor remote, so the rebase can fetch the
+      # blobs of upstream commits the fork does not have.
+      - name: Fetch upstream main
+        id: upstream
+        run: |
+          git remote add upstream https://github.com/pingdotgg/t3code.git
+          git config remote.upstream.promisor true
+          git config remote.upstream.partialclonefilter blob:none
+          git fetch --no-tags --filter=blob:none upstream main
+          echo "sha=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+
+      # The release body records what it was built from (see the release job).
+      - name: Compare with the last arbre build
+        id: changes
+        env:
+          FORCE: ${{ inputs.force || inputs.update_proof }}
+          UPSTREAM_SHA: ${{ steps.upstream.outputs.sha }}
+        run: |
+          set -euo pipefail
+          previous="$(gh release list --limit 100 --json tagName,createdAt \
+            --jq "[.[] | select(.tagName | test(env.ARBRE_TAG_PATTERN))] | sort_by(.createdAt) | reverse | .[0].tagName // \"\"")"
+          echo "previous_tag=$previous" >> "$GITHUB_OUTPUT"
+          build=true
+          if [[ -n "$previous" && "$FORCE" != "true" ]]; then
+            body="$(gh release view "$previous" --json body --jq .body | tr -d '\r')"
+            if grep -qx "upstream-main: $UPSTREAM_SHA" <<<"$body" && grep -qx "arbre: $GITHUB_SHA" <<<"$body"; then
+              build=false
+              echo "::notice::$previous already holds upstream main $UPSTREAM_SHA with arbre $GITHUB_SHA."
+            fi
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
+      - name: Rebase the patch
+        if: steps.changes.outputs.build == 'true'
+        env:
+          UPSTREAM_SHA: ${{ steps.upstream.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rebase "$UPSTREAM_SHA"; then
+            git format-patch --output-directory "$RUNNER_TEMP/arbre-patch" "$UPSTREAM_SHA..HEAD"
+            exit 0
+          fi
+
+          stopped="$(git log -1 --format='%h %s' REBASE_HEAD)"
+          conflicts="$(git diff --name-only --diff-filter=U)"
+          git rebase --abort
+          echo "::error::Rebasing arbre onto upstream main $UPSTREAM_SHA stopped at $stopped. Conflicting files: $(tr '\n' ' ' <<<"$conflicts")"
+
+          # One open issue per conflict: later runs hit the same conflict until arbre is rebased by hand.
+          existing="$(gh issue list --state open --search 'in:title "arbre: rebase conflict"' --json number --jq '.[0].number // ""')"
+          if [[ -n "$existing" ]]; then
+            echo "Already reported in #$existing."
+            exit 1
+          fi
+          body="$(printf '%s\n' \
+            "The daily build could not rebase \`arbre\` ($GITHUB_SHA) onto upstream main ($UPSTREAM_SHA)." \
+            "" \
+            "Stopped at: $stopped" \
+            "" \
+            "Conflicting files:" \
+            "$(sed 's/^/- `/; s/$/`/' <<<"$conflicts")" \
+            "" \
+            "Rebase \`arbre\` by hand, push it, then close this issue. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")"
+          gh issue create --title "arbre: rebase conflict $(date -u +%F)" --body "$body"
+          exit 1
+
+      - name: Upload the rebased patch
+        if: steps.changes.outputs.build == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: arbre-patch
+          path: ${{ runner.temp }}/arbre-patch/*.patch
+          if-no-files-found: error
+          retention-days: 3
+
+  test:
+    name: Tests on the rebased tree
+    needs: sync
+    if: needs.sync.outputs.build == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/arbre-ci.yml
+    with:
+      upstream_sha: ${{ needs.sync.outputs.upstream_sha }}
+
+  build:
+    name: Build macOS arm64
+    needs: sync
+    if: needs.sync.outputs.build == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 75
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+            !/apps/mobile/modules/t3-terminal/Vendor/**/*.a
+          sparse-checkout-cone-mode: false
+
+      - name: Rebase onto upstream main
+        uses: ./.github/actions/arbre-rebased-tree
+        with:
+          upstream-sha: ${{ needs.sync.outputs.upstream_sha }}
+
+      - name: Setup dependencies
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          install-args: --filter=t3... --filter=@t3tools/web... --filter=@t3tools/desktop... --filter=@t3tools/scripts...
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin
+
+      # Upstream's nightly numbering, with this workflow's run number, so each
+      # arbre build is newer than the last and lands on the nightly channel.
+      - name: Resolve version
+        id: version
+        env:
+          UPSTREAM_SHA: ${{ needs.sync.outputs.upstream_sha }}
+        run: |
+          node scripts/resolve-nightly-release.ts \
+            --date "$(date -u +%Y%m%d)" \
+            --run-number "$GITHUB_RUN_NUMBER" \
+            --sha "$UPSTREAM_SHA" \
+            --github-output
+
+      - name: Align package versions to release version
+        run: node scripts/update-release-package-versions.ts "${{ steps.version.outputs.version }}"
+
+      # The same public T3 Connect ids upstream's preview builds take.
+      - name: Load public relay config
+        run: grep -E '^T3CODE_(CLERK_PUBLISHABLE_KEY|CLERK_JWT_TEMPLATE|CLERK_CLI_OAUTH_CLIENT_ID|RELAY_URL)=' .env.example >> "$GITHUB_ENV"
+
+      # electron-builder only signs with an identity `security find-identity -v`
+      # lists, which a self-signed certificate needs admin trust for. CSC_NAME
+      # then selects it even though the unsigned build path turns discovery off.
+      - name: Import the self-signed identity
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/arbre-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 16)"
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$CSC_LINK" | base64 --decode > "$RUNNER_TEMP/arbre-signing.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/arbre-signing.p12" -k "$keychain" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/arbre-signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-certificate -c "T3 Code Arbre" -p "$keychain" > "$RUNNER_TEMP/arbre-signing.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/arbre-signing.pem"
+          security find-identity -v -p codesigning "$keychain" | grep -q '"T3 Code Arbre"'
+          echo "CSC_NAME=T3 Code Arbre" >> "$GITHUB_ENV"
+
+      - name: Build desktop artifact
+        env:
+          T3CODE_DESKTOP_UPDATE_REPOSITORY: ${{ github.repository }}
+        run: |
+          vp run dist:desktop:artifact \
+            --platform mac \
+            --target dmg \
+            --arch arm64 \
+            --build-version "${{ steps.version.outputs.version }}" \
+            --verbose
+
+      - name: Check signature, size and update feed
+        id: check
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(release/*-arm64.dmg)
+          zips=(release/*-arm64.zip)
+          manifests=(release/*-mac.yml)
+          ls -la release
+          if (( ${#dmgs[@]} != 1 || ${#zips[@]} != 1 || ${#manifests[@]} != 1 )); then
+            echo "::error::Expected one arm64 dmg, one arm64 zip and one mac update manifest."
+            exit 1
+          fi
+          cat "${manifests[0]}"
+
+          dmg_mb=$(( $(stat -f%z "${dmgs[0]}") / 1024 / 1024 ))
+          echo "DMG size: ${dmg_mb} MB"
+          if (( dmg_mb >= 400 )); then
+            echo "::error::The DMG is ${dmg_mb} MB, over the 400 MB budget."
+            exit 1
+          fi
+
+          check_app() {
+            local app="$1"
+            codesign -dv --verbose=4 "$app" 2>&1 | tee "$RUNNER_TEMP/codesign.txt"
+            grep -qx "Authority=T3 Code Arbre" "$RUNNER_TEMP/codesign.txt"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            codesign -d -r- "$app"
+            cat "$app/Contents/Resources/app-update.yml"
+            grep -qx "owner: $OWNER" "$app/Contents/Resources/app-update.yml"
+          }
+
+          echo "--- App in the DMG"
+          mount="$RUNNER_TEMP/arbre-dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "${dmgs[0]}"
+          app=$(ls -d "$mount"/*.app)
+          check_app "$app"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+
+          # Squirrel.Mac installs the zip, so its copy must carry the same signature.
+          echo "--- App in the zip"
+          unzipped="$RUNNER_TEMP/arbre-zip"
+          ditto -x -k "${zips[0]}" "$unzipped"
+          check_app "$(ls -d "$unzipped"/*.app)"
+
+      # A build can package fine and still not open; this also catches a
+      # signature macOS refuses to load.
+      - name: Launch check
+        env:
+          APP: ${{ steps.check.outputs.app }}
+        run: |
+          executable=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Contents/Info.plist")
+          node scripts/smoke-desktop-app.ts --artifacts-dir "$RUNNER_TEMP/desktop-launch-check" --executable "$APP/Contents/MacOS/$executable"
+
+      - name: Upload launch check output
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-launch-check
+          path: ${{ runner.temp }}/desktop-launch-check
+          if-no-files-found: ignore
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: arbre-desktop
+          path: |
+            release/*-arm64.dmg
+            release/*-arm64.zip
+            release/*.blockmap
+            release/*-mac.yml
+          if-no-files-found: error
+          # Installers, zips and blockmaps are already compressed.
+          compression-level: 0
+
+  release:
+    name: Publish the release
+    needs: [sync, test, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: v${{ needs.build.outputs.version }}
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: arbre-desktop
+          path: assets
+
+      # The tag names a commit of this fork: the rebased tree is never pushed,
+      # so the body records both inputs. The sync job reads them back.
+      - name: Publish prerelease
+        env:
+          UPSTREAM_SHA: ${{ needs.sync.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          notes="$(printf '%s\n' \
+            "T3 Code with the arbre sidebar patch, rebased on upstream main. Install or update with \`scripts/arbre-install.sh\`." \
+            "" \
+            "upstream-main: $UPSTREAM_SHA" \
+            "arbre: $GITHUB_SHA")"
+          gh release create "$TAG" assets/* \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --latest=false \
+            --title "arbre $(date -u +%F) ($VERSION)" \
+            --notes "$notes"
+          echo "Published $GITHUB_SERVER_URL/$GH_REPO/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      # The patched GitHubProvider reads this pointer when releases.atom lists
+      # another tag first, which the fork's leftover upstream tags can cause.
+      - name: Point the update feed at it
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/releases/tags/$TAG" --jq '{tag_name, name, body}' > nightly.json
+          gh release view update-feed > /dev/null 2>&1 ||
+            gh release create update-feed --target "$GITHUB_SHA" --prerelease --latest=false --title "Update feed" \
+              --notes "Pointer to the newest arbre build, read by the desktop updater."
+          gh release upload update-feed nightly.json --clobber
+
+      - name: Keep the last 7 arbre releases
+        run: |
+          set -euo pipefail
+          gh release list --limit 100 --json tagName,createdAt \
+            --jq "[.[] | select(.tagName | test(env.ARBRE_TAG_PATTERN))] | sort_by(.createdAt) | reverse | .[7:] | .[].tagName" |
+            while read -r old; do
+              echo "Deleting $old"
+              gh release delete "$old" --cleanup-tag --yes
+            done
+
+  # Dispatch-only: installs the build published before this run, lets its own
+  # updater move it to this run's release, and checks the app on disk changed.
+  update-proof:
+    name: Prove the in-app update
+    needs: [sync, build, release]
+    if: inputs.update_proof && needs.sync.outputs.previous_tag != ''
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+            !/apps/mobile/modules/t3-terminal/Vendor/**/*.a
+          sparse-checkout-cone-mode: false
+
+      - name: Setup dependencies
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          install-args: --filter=@t3tools/scripts...
+
+      - name: Install the previous arbre build
+        id: install
+        env:
+          PREVIOUS_TAG: ${{ needs.sync.outputs.previous_tag }}
+        run: |
+          set -euo pipefail
+          gh release download "$PREVIOUS_TAG" --pattern '*-arm64.dmg' --dir "$RUNNER_TEMP/previous"
+          mount="$RUNNER_TEMP/previous-dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$RUNNER_TEMP"/previous/*.dmg
+          app_name=$(basename "$(ls -d "$mount"/*.app)")
+          ditto "$mount/$app_name" "/Applications/$app_name"
+          hdiutil detach "$mount"
+          echo "app=/Applications/$app_name" >> "$GITHUB_OUTPUT"
+
+      - name: Update it in place
+        env:
+          APP: ${{ steps.install.outputs.app }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: node scripts/arbre-update-proof.ts --app "$APP" --expect-version "$VERSION" --output-dir "$RUNNER_TEMP/update-proof"
+
+      - name: Upload update proof logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: update-proof
+          path: ${{ runner.temp }}/update-proof
+          if-no-files-found: ignore
