@@ -1113,7 +1113,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         },
         ...sortable.listeners,
       }
-    : {};
+    : { style: undefined };
   const destinationVerb = sortable?.isDragging
     ? props.dropVerb
     : props.sweepAction === "unsnooze"
@@ -1349,6 +1349,22 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     issueBadge === null &&
     diff === null &&
     runningTerminalIds.length === 0;
+  const diffCount = diff ? (
+    <span className="shrink-0 font-mono">
+      <span className="text-diff-addition-foreground">+{formatDiffCount(diff.insertions)}</span>{" "}
+      <span className="text-diff-deletion-foreground">−{formatDiffCount(diff.deletions)}</span>
+    </span>
+  ) : null;
+  // A long model name truncates within its half of the line, so the branch stays readable.
+  const providerTrail = (
+    <>
+      <span className="min-w-0 truncate text-xs text-secondary-label">{modelLabel}</span>
+      <SidebarProviderIcon
+        thread={thread}
+        providerEntryByInstanceId={props.providerEntryByInstanceId}
+      />
+    </>
+  );
   const metaLine = metaLineEmpty ? null : (
     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
       {props.environmentLabel !== null ? (
@@ -1363,34 +1379,33 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       ) : (
         <span className="flex-1" />
       )}
-      {terminalStatusIcon}
-      {prBadge}
-      {issueBadge}
-      {diff ? (
-        <span className="shrink-0 font-mono">
-          <span className="text-diff-addition-foreground">+{formatDiffCount(diff.insertions)}</span>{" "}
-          <span className="text-diff-deletion-foreground">−{formatDiffCount(diff.deletions)}</span>
-        </span>
-      ) : null}
+      {isChild ? (
+        // A child reads like the mockup: branch, +/−, PR, then the rest.
+        <>
+          {diffCount}
+          {prBadge}
+          {terminalStatusIcon}
+          {issueBadge}
+        </>
+      ) : (
+        <>
+          {terminalStatusIcon}
+          {prBadge}
+          {issueBadge}
+          {diffCount}
+        </>
+      )}
       <span
         aria-hidden
-        className="pointer-events-none ml-auto inline-flex shrink-0 items-center gap-1"
+        className="pointer-events-none ml-auto inline-flex min-w-0 max-w-1/2 items-center gap-1"
       >
-        <span className="text-xs text-secondary-label">{modelLabel}</span>
-        <SidebarProviderIcon
-          thread={thread}
-          providerEntryByInstanceId={props.providerEntryByInstanceId}
-        />
+        {providerTrail}
       </span>
     </div>
   );
   const titleLineIcons = metaLineEmpty ? (
-    <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
-      <span className="text-xs text-secondary-label">{modelLabel}</span>
-      <SidebarProviderIcon
-        thread={thread}
-        providerEntryByInstanceId={props.providerEntryByInstanceId}
-      />
+    <span aria-hidden className="inline-flex min-w-0 max-w-1/2 items-center gap-1">
+      {providerTrail}
     </span>
   ) : null;
 
@@ -1403,6 +1418,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       <li
         data-thread-item={threadKey}
         {...sortableRootProps}
+        // Adds the connector gutter without dropping dnd-kit's transform.
+        {...(childConnector
+          ? {
+              style: {
+                ...sortableRootProps.style,
+                paddingInlineStart: sidebarChildInsetPx(childConnector.depth),
+              },
+            }
+          : {})}
         {...(fileDropHandlers ?? {})}
         className={cn(
           "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(9)]",
@@ -1410,11 +1434,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           childConnector && "relative",
           sortable?.isDragging && "relative z-20",
         )}
-        style={
-          childConnector
-            ? { paddingInlineStart: sidebarChildInsetPx(childConnector.depth) }
-            : undefined
-        }
       >
         {childConnector ? <SidebarChildConnector {...childConnector} /> : null}
         <ThreadHoverCardTrigger
