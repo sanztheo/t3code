@@ -209,10 +209,7 @@ describe("sidebar child row", () => {
       expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth);
       expect(label.element().scrollWidth).toBeGreaterThan(label.element().clientWidth);
       // The environment is the meta line's flexible span; before the fix it shrank to 0px.
-      const environment = label
-        .element()
-        .closest("div")!
-        .querySelector(":scope > span.flex-1")!;
+      const environment = label.element().closest("div")!.querySelector(":scope > span.flex-1")!;
       expect(environment.textContent).toContain("Codespace voix");
       expect(environment.getBoundingClientRect().width).toBeGreaterThan(40);
     },
