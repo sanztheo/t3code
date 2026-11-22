@@ -1,4 +1,4 @@
-name: Arbre daily build
+name: Arbre build
 
 # Sanz's T3 Code: upstream main with the `arbre` patch rebased on top, built
 # as a self-signed macOS arm64 app and published as a nightly-channel
@@ -7,9 +7,11 @@ name: Arbre daily build
 # installed build updates itself to the next one.
 
 on:
-  # No schedule: GitHub turned this workflow off about 30 minutes after every
-  # enable while it had one (2026-11-22, no event in the security log). It is
-  # dispatched from outside; a run with nothing new stops after the sync job.
+  # Upstream publishes several nightlies a day; a run with nothing new stops
+  # after the sync job. This file replaces arbre-daily.yml, whose workflow GitHub
+  # kept turning off about 30 minutes after each enable (2026-11-22).
+  schedule:
+    - cron: "0 */3 * * *"
   workflow_dispatch:
     inputs:
       force:
