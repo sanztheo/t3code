@@ -1,7 +1,7 @@
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
-import { isChildRunLive, isShownUnderParent } from "@t3tools/client-runtime/state/threads";
-import { isListedThreadLineage } from "@t3tools/contracts";
+import { isShownUnderParent } from "@t3tools/client-runtime/state/threads";
+import { isListedThreadLineage, isLiveSubagentShell } from "@t3tools/contracts";
 
 /** The scoped keys of parents whose children the user folded away. */
 export const SIDEBAR_COLLAPSED_PARENTS_KEY = "t3code:sidebar-collapsed-parents:v1";
@@ -36,7 +36,9 @@ function directParentKey(thread: EnvironmentThreadShell): string | null {
 }
 
 /**
- * The running children to show under each listed thread, flattened in display order.
+ * The live children to show under each listed thread, flattened in display order.
+ * Live is the lineage panel's « running »: a child between turns while it awaits its own
+ * background command, or waiting on the user, still holds its parent.
  * An ended child leaves the tree, except the one the route opens, and its live
  * descendants move up to the nearest shown ancestor. A child whose chain never reaches
  * a listed thread (archived or missing parent, cycle) is left out.
@@ -62,7 +64,7 @@ export function buildSidebarChildTree(input: {
   }
 
   const isShown = (key: string, thread: EnvironmentThreadShell) =>
-    isChildRunLive(thread.source) || key === input.keepVisibleKey;
+    isLiveSubagentShell(thread.source) || key === input.keepVisibleKey;
 
   // Climbs past hidden children to the nearest listed or shown ancestor.
   const shownParentKey = (key: string, thread: EnvironmentThreadShell): string | null => {
