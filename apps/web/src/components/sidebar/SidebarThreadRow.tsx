@@ -143,6 +143,11 @@ import { observeVisibleAnimation } from "~/lib/visibleAnimation";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
 import { ThreadDetailsIssueRows } from "../chat/ThreadDetailsIssueRows";
 import { IssueGlyph, issueStatePresentation } from "../issue/issuePresentation";
+import {
+  SidebarChildConnector,
+  sidebarChildInsetPx,
+  type SidebarChildConnectorShape,
+} from "./SidebarChildConnector";
 import { useThreadIntentPrefetch } from "./useThreadIntentPrefetch";
 
 // The fields thread rows show. Provider status pushes refresh `checkedAt`,
@@ -593,7 +598,10 @@ type SidebarThreadRowProps = {
   thread: SidebarThreadSummary;
   // "folder" is a one-line row inside a boring sidebar project folder;
   // "folder-multiline" adds the card's environment and PR line under it.
-  variant: "card" | "slim" | "folder" | "folder-multiline";
+  // "child" is a running child nested under its parent: no project line and no
+  // lifecycle of its own (settle, snooze, pin, rename), since it ends with its parent.
+  variant: "card" | "slim" | "folder" | "folder-multiline" | "child";
+  childConnector?: SidebarChildConnectorShape | undefined;
   navigationParent?: string | undefined;
   variantAction: SidebarSweepAction;
   settlementSupported: boolean;
@@ -718,6 +726,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     variant,
     variantAction,
   } = props;
+  const isChild = variant === "child";
   const threadRef = scopeThreadRef(thread.environmentId, thread.id);
   const threadKey = scopedThreadKey(threadRef);
   const canOperateThread = useEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope);
@@ -880,6 +889,22 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         }
       : runStatus;
   const isWokeStatus = topStatus?.icon === "woke";
+  const statusDuration =
+    status === "preparing" || status === "working" ? (
+      <span aria-hidden>
+        <WorkingDuration
+          environmentId={thread.environmentId}
+          startedAt={resolveWorkingStartedAt(thread)}
+        />
+      </span>
+    ) : status === "waiting" ? (
+      <span aria-hidden>
+        <WorkingDuration
+          environmentId={thread.environmentId}
+          startedAt={thread.latestRun?.completedAt ?? null}
+        />
+      </span>
+    ) : null;
 
   const branchMismatch = resolveLocalCheckoutBranchMismatch({
     effectiveEnvMode: thread.worktreePath === null ? "local" : "worktree",
@@ -937,6 +962,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     if (event.target !== event.currentTarget) return;
     if (
       event.key === "F2" &&
+      !isChild &&
       !isRenaming &&
       readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope)
     ) {
@@ -950,6 +976,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   };
   const handleDoubleClick = (event: ReactMouseEvent) => {
     if (
+      isChild ||
       !readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope) ||
       isRenaming ||
       event.metaKey ||
@@ -1252,7 +1279,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     </SharedTooltipTrigger>
   ) : null;
   const showPin =
-    props.isPinned && (!sortable?.isDragging || (props.dragOverPinned && props.dropVerb === null));
+    !isChild &&
+    props.isPinned &&
+    (!sortable?.isDragging || (props.dragOverPinned && props.dropVerb === null));
   const pinIndicator = showPin ? (
     props.pinningSupported && canOperateThread && !sortable?.isDragging ? (
       <SharedTooltipTrigger
@@ -1312,7 +1341,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
 
   const diff = latestRunDiff(thread);
   // Only the trailing icons would remain, so the row moves them to the title line instead.
+  // A child row always keeps its second line: that is where its model shows.
   const metaLineEmpty =
+    !isChild &&
     props.environmentLabel === null &&
     prBadge === null &&
     issueBadge === null &&
@@ -1345,6 +1376,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         aria-hidden
         className="pointer-events-none ml-auto inline-flex shrink-0 items-center gap-1"
       >
+        <span className="text-xs text-secondary-label">{modelLabel}</span>
         <SidebarProviderIcon
           thread={thread}
           providerEntryByInstanceId={props.providerEntryByInstanceId}
@@ -1354,6 +1386,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   );
   const titleLineIcons = metaLineEmpty ? (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
+      <span className="text-xs text-secondary-label">{modelLabel}</span>
       <SidebarProviderIcon
         thread={thread}
         providerEntryByInstanceId={props.providerEntryByInstanceId}
@@ -1362,8 +1395,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   ) : null;
 
   if (variant !== "card") {
-    const multiline = variant === "folder-multiline";
+    // A child row is a two-line folder row: no favicon, its status in the time slot.
+    const multiline = variant === "folder-multiline" || isChild;
     const inFolder = variant === "folder" || multiline;
+    const childConnector = isChild ? props.childConnector : undefined;
     return (
       <li
         data-thread-item={threadKey}
@@ -1372,9 +1407,16 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         className={cn(
           "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(9)]",
           metaLine !== null && multiline && "[contain-intrinsic-size:auto_--spacing(13.5)]",
+          childConnector && "relative",
           sortable?.isDragging && "relative z-20",
         )}
+        style={
+          childConnector
+            ? { paddingInlineStart: sidebarChildInsetPx(childConnector.depth) }
+            : undefined
+        }
       >
+        {childConnector ? <SidebarChildConnector {...childConnector} /> : null}
         <ThreadHoverCardTrigger
           card={detailsTooltip}
           disabled={isRenaming || sortable?.isDragging}
@@ -1387,7 +1429,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               data-sidebar-parent={props.navigationParent}
               aria-label={accessibility.label}
               aria-current={accessibility.current}
-              data-testid={inFolder ? "sidebar-row-folder" : "sidebar-row-slim"}
+              data-testid={
+                isChild
+                  ? "sidebar-row-child"
+                  : inFolder
+                    ? "sidebar-row-folder"
+                    : "sidebar-row-slim"
+              }
               aria-busy={isRegeneratingTitle || undefined}
               className={cn(
                 rowSurfaceClassName,
@@ -1395,7 +1443,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ? "flex flex-col justify-center px-2.5 py-1.5"
                   : "flex h-9 items-center gap-2.5 px-2.5",
                 // Lines titles up with the folder name, past its chevron and icon.
-                inFolder && "ps-9",
+                inFolder && !isChild && "ps-9",
               )}
               onClick={handleClick}
               onPointerEnter={intentPrefetch.onPointerEnter}
@@ -1491,6 +1539,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     >
                       <TopStatusIcon icon={topStatus.icon} className="size-3" />
                       {topStatus.label}
+                      {isChild ? statusDuration : null}
                     </span>
                   ) : (
                     <span className="text-xs">
@@ -1504,7 +1553,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     </span>
                   )}
                 </span>
-                {variantAction === "unsnooze" ? (
+                {isChild ? null : variantAction === "unsnooze" ? (
                   !props.snoozeSupported ? null : (
                     <button
                       type="button"
@@ -1696,21 +1745,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                             BackgroundThreadAnnouncer and the open thread's
                             timeline speak status changes instead. */}
                         {topStatus.label}
-                        {status === "preparing" || status === "working" ? (
-                          <span aria-hidden>
-                            <WorkingDuration
-                              environmentId={thread.environmentId}
-                              startedAt={resolveWorkingStartedAt(thread)}
-                            />
-                          </span>
-                        ) : status === "waiting" ? (
-                          <span aria-hidden>
-                            <WorkingDuration
-                              environmentId={thread.environmentId}
-                              startedAt={thread.latestRun?.completedAt ?? null}
-                            />
-                          </span>
-                        ) : null}
+                        {statusDuration}
                       </span>
                     )
                   ) : (
