@@ -95,13 +95,13 @@ jobs:
           vp test run "${tests[@]}"
 
       - name: Typecheck
-        if: ${{ !cancelled() && inputs.checks != false }}
+        if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
         run: vp run typecheck
 
       - name: Lint
-        if: ${{ !cancelled() && inputs.checks != false }}
+        if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
         run: vp run lint
 
       - name: Format check
-        if: ${{ !cancelled() && inputs.checks != false }}
+        if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
         run: vp run fmt:check
