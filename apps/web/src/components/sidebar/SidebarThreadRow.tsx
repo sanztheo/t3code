@@ -1330,7 +1330,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       <span className="text-diff-deletion-foreground">−{formatDiffCount(diff.deletions)}</span>
     </span>
   ) : null;
-  // A long model name truncates within its half of the line, so the branch stays readable.
+  // A long model name truncates within its half of the line, so the environment stays readable.
   const providerTrail = (
     <>
       <span className="min-w-0 truncate text-xs text-secondary-label">{modelLabel}</span>
