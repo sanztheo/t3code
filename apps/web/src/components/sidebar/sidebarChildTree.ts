@@ -3,6 +3,9 @@ import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/model
 import { isChildRunLive, isShownUnderParent } from "@t3tools/client-runtime/state/threads";
 import { isListedThreadLineage } from "@t3tools/contracts";
 
+/** The scoped keys of parents whose children the user folded away. */
+export const SIDEBAR_COLLAPSED_PARENTS_KEY = "t3code:sidebar-collapsed-parents:v1";
+
 /** Deeper children still show, at this depth, so the row keeps room for its title. */
 export const SIDEBAR_CHILD_MAX_DEPTH = 3;
 

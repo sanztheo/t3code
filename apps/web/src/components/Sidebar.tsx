@@ -280,6 +280,8 @@ import {
   useDraftTerminalLabels,
   useSidebarDrafts,
 } from "./sidebar/SidebarDraftBlock";
+import type { SidebarChildNode } from "./sidebar/sidebarChildTree";
+import { childThreadMenuItems, useSidebarChildRows } from "./sidebar/useSidebarChildRows";
 import {
   SidebarProjectFolderHeader,
   sidebarFolderRowId,
@@ -1142,6 +1144,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     routeThreadRef === null
       ? null
       : scopedThreadKey(resolveListedAncestorThreadRef(routeThreadRef, threads));
+  const childRows = useSidebarChildRows({ threads, delegatedUnderParent, routeThreadKey });
+  const activeRowKey = childRows.activeRowKey(routeRowThreadKey, routeThreadKey);
   const isSearchingThreads = threadSearchQuery.trim().length > 0;
   // The open draft's first send names its thread in place; a finalized draft reached by
   // navigation resolves through its redirect instead, and still reveals.
@@ -2686,10 +2690,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           await handleMultiSelectContextMenu(position, source);
           return;
         }
+        const childThread = childRows.childThread(threadKey);
         // Search results also reach threads in collapsed shelves, which are not rendered rows.
         const thread =
           threadByKeyRef.current.get(threadKey) ??
-          searchableThreads.find((candidate) => threadShellKey(candidate) === threadKey);
+          searchableThreads.find((candidate) => threadShellKey(candidate) === threadKey) ??
+          childThread;
         if (!thread) return;
         const threadWorkspacePath =
           thread.worktreePath ??
@@ -2716,45 +2722,41 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 projectRef.projectId === thread.projectId,
             ),
           ) ?? null;
+        const menuItems = buildThreadActionMenuItems({
+          canOperate: readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope),
+          canTriage: threadTriagePermitted(threadRef.environmentId),
+          branch: thread.branch ?? null,
+          // An archived project is not a filter choice.
+          projectFilter:
+            threadProjectGroup && !threadProjectGroup.archived
+              ? {
+                  label: threadProjectGroup.displayName,
+                  isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
+                }
+              : null,
+          isPinned,
+          isSettled,
+          autoSettleEnabled: thread.autoSettleDisabledAt == null,
+          isSnoozed,
+          canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
+          isRegeneratingTitle,
+          isRunning: !threadRuntimeCanArchive(thread.runtime),
+          hasCompletedRun: thread.latestRun?.completedAt != null,
+          canShareWithGuest: appAtomRegistry.get(canShareWithGuestAtom(threadRef.environmentId)),
+          canTurnIntoProject: canTurnThreadIntoProject(threadRef),
+          canRename: !fromSearch,
+          supports: {
+            settlement: configLoaded,
+            autoSettleOptOut: supportsAutoSettleOptOut,
+            snooze: configLoaded,
+            pinning: configLoaded,
+            titleRegeneration: configLoaded,
+          },
+          snoozePresets,
+        });
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
-            buildThreadActionMenuItems({
-              canOperate: readEnvironmentScope(
-                threadRef.environmentId,
-                AuthOrchestrationOperateScope,
-              ),
-              canTriage: threadTriagePermitted(threadRef.environmentId),
-              branch: thread.branch ?? null,
-              // An archived project is not a filter choice.
-              projectFilter:
-                threadProjectGroup && !threadProjectGroup.archived
-                  ? {
-                      label: threadProjectGroup.displayName,
-                      isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
-                    }
-                  : null,
-              isPinned,
-              isSettled,
-              autoSettleEnabled: thread.autoSettleDisabledAt == null,
-              isSnoozed,
-              canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
-              isRegeneratingTitle,
-              isRunning: !threadRuntimeCanArchive(thread.runtime),
-              hasCompletedRun: thread.latestRun?.completedAt != null,
-              canShareWithGuest: appAtomRegistry.get(
-                canShareWithGuestAtom(threadRef.environmentId),
-              ),
-              canTurnIntoProject: canTurnThreadIntoProject(threadRef),
-              canRename: !fromSearch,
-              supports: {
-                settlement: configLoaded,
-                autoSettleOptOut: supportsAutoSettleOptOut,
-                snooze: configLoaded,
-                pinning: configLoaded,
-                titleRegeneration: configLoaded,
-              },
-              snoozePresets,
-            }),
+            childThread === undefined ? menuItems : childThreadMenuItems(menuItems),
             position,
             source,
           ),
@@ -3516,6 +3518,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         section: SidebarSection,
                         // The tree row of the project folder this row sits in.
                         folderRow?: string,
+                        // Set for a running child drawn under its listed parent.
+                        child?: { readonly node: SidebarChildNode; readonly parentKey: string },
                       ) => {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
@@ -3535,13 +3539,24 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             sortableId={threadKey}
                             contextDrag={isContextDrag}
                             sortableDisabled={
+                              child !== undefined ||
                               renamingThreadKey === threadKey ||
                               !draggableThreadKeys.has(threadKey) ||
                               optimisticDrop !== null
                             }
                             thread={thread}
-                            variant={rowVariant}
+                            variant={child ? "child" : rowVariant}
+                            childConnector={
+                              child && {
+                                depth: child.node.depth,
+                                isLast: child.node.isLast,
+                                lineContinues: child.node.lineContinues,
+                                offsetPx: childRows.connectorOffsetPx(folderRow !== undefined),
+                              }
+                            }
+                            childToggle={child ? undefined : childRows.toggleFor(threadKey)}
                             navigationParent={
+                              child?.parentKey ??
                               folderRow ??
                               (section === "working" ||
                               section === "snoozed" ||
@@ -3581,7 +3596,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 : null
                             }
                             wokeAt={threadWokeAt(thread, { now: snoozeNow })}
-                            isActive={routeRowThreadKey === threadKey}
+                            isActive={activeRowKey === threadKey}
                             revealRef={
                               routeRowThreadKey === threadKey ? revealActiveRow : undefined
                             }
@@ -3645,11 +3660,25 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           onDraftContextMenu={handleDraftContextMenu}
                         />,
                       ];
+                      // A listed row, then its running children, which share its section and folder.
+                      const pushThreadRow = (
+                        thread: EnvironmentThreadShell,
+                        section: SidebarSection,
+                        folderRow?: string,
+                      ) => {
+                        items.push(renderThreadRow(thread, section, folderRow));
+                        const parentKey = threadShellKey(thread);
+                        for (const node of childRows.shownChildrenOf(parentKey)) {
+                          items.push(
+                            renderThreadRow(node.thread, section, folderRow, { node, parentKey }),
+                          );
+                        }
+                      };
                       for (const item of sidebarListItems) {
                         if (item.kind === "thread") {
                           // Folders draw active rows in their own place below.
                           if (projectFolders !== null && item.section === "active") continue;
-                          items.push(renderThreadRow(threadByKey.get(item.key)!, item.section));
+                          pushThreadRow(threadByKey.get(item.key)!, item.section);
                           continue;
                         }
                         if (projectFolders !== null && item.marker === "active-placeholder") {
@@ -3666,12 +3695,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               />,
                             );
                             for (const thread of folder.threads) {
-                              items.push(
-                                renderThreadRow(
-                                  thread,
-                                  "active",
-                                  sidebarFolderRowId(folder.group.projectKey),
-                                ),
+                              pushThreadRow(
+                                thread,
+                                "active",
+                                sidebarFolderRowId(folder.group.projectKey),
                               );
                             }
                           }
