@@ -5,6 +5,8 @@ export type SidebarChildConnectorShape = {
   isLast: boolean;
   // Entry i: the line of the ancestor at depth i + 1 still runs past this row.
   lineContinues: readonly boolean[];
+  // The parent row's content inset, so the lines start under the parent's chevron.
+  offsetPx?: number;
 };
 
 // Each nesting level shifts the row by one step; a level's line runs down the
@@ -15,8 +17,11 @@ const LINE_OFFSET_PX = 8;
 const lineStart = (depth: number) => (depth - 1) * STEP_PX + LINE_OFFSET_PX;
 
 /** The row's start inset, leaving the gutter its connectors are drawn in. */
-export function sidebarChildInsetPx(depth: SidebarChildConnectorShape["depth"]): number {
-  return depth * STEP_PX + 4;
+export function sidebarChildInsetPx(
+  depth: SidebarChildConnectorShape["depth"],
+  offsetPx = 0,
+): number {
+  return offsetPx + depth * STEP_PX + 4;
 }
 
 /**
@@ -26,7 +31,11 @@ export function sidebarChildInsetPx(depth: SidebarChildConnectorShape["depth"]):
 export function SidebarChildConnector(props: SidebarChildConnectorShape) {
   const ownLineStart = lineStart(props.depth);
   return (
-    <span aria-hidden className="pointer-events-none absolute inset-y-0 start-0">
+    <span
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0"
+      style={{ insetInlineStart: props.offsetPx ?? 0 }}
+    >
       {props.lineContinues
         .flatMap((continues, index) => (continues ? [index + 1] : []))
         .map((ancestorDepth) => (

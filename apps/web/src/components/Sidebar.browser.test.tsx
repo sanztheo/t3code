@@ -13,6 +13,8 @@ import {
   EnvironmentId,
   type LocalApi,
   ProjectId,
+  ProviderInstanceId,
+  RunId,
   ThreadId,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
@@ -37,7 +39,11 @@ import { useThreadSelectionStore } from "../threadSelectionStore";
 import { readLocalApi } from "../localApi";
 import type { Project } from "../types";
 import Sidebar from "./Sidebar";
-import { THREAD_JUMP_HINT_SHOW_DELAY_MS } from "./Sidebar.logic";
+import {
+  filterSidebarV2VisibleThreads,
+  resolveSidebarReorderableThreadKeys,
+  THREAD_JUMP_HINT_SHOW_DELAY_MS,
+} from "./Sidebar.logic";
 import { SortableThreadRow } from "./sidebar/SidebarThreadRow";
 import { SidebarProvider, useSidebar } from "./ui/sidebar";
 
@@ -714,5 +720,328 @@ describe("sidebar settled pagination", () => {
     const loadedRows = screen.container.querySelectorAll("[data-thread-item]").length;
     await act(() => moreButton.click());
     expect(screen.container.querySelectorAll("[data-thread-item]")).toHaveLength(loadedRows);
+  });
+});
+
+describe("sidebar child threads", () => {
+  const environmentId = EnvironmentId.make("local");
+  const parentId = ThreadId.make("parent");
+  const COLLAPSED_PARENTS_KEY = "t3code:sidebar-collapsed-parents:v1";
+  const rowKey = (thread: EnvironmentThreadShell) => `${thread.environmentId}:${thread.id}`;
+
+  // A subagent mid-run, so it counts as live and as working.
+  function runningChild(index: number, parent = parentId) {
+    const runId = RunId.make(`run-child-${index}`);
+    const startedAt = `2026-01-02T00:00:${String(index).padStart(2, "0")}.000Z`;
+    return makeThreadFixture({
+      environmentId,
+      id: ThreadId.make(`child-${index}`),
+      projectId: ProjectId.make("active"),
+      title: `Child ${index}`,
+      createdAt: startedAt,
+      lineage: { rootThreadId: parent, parentThreadId: parent, relationshipToParent: "subagent" },
+      latestRun: {
+        runId,
+        status: "running",
+        requestedAt: startedAt,
+        startedAt,
+        completedAt: null,
+        assistantMessageId: null,
+      },
+      runtime: {
+        status: "running",
+        activeRunId: runId,
+        activityStartedAt: startedAt,
+        providerInstanceId: ProviderInstanceId.make("codex"),
+        providerName: null,
+        lastError: null,
+        updatedAt: startedAt,
+      },
+    });
+  }
+
+  function parentThread(overrides: Partial<EnvironmentThreadShell> = {}) {
+    return makeThreadFixture({
+      environmentId,
+      id: parentId,
+      projectId: ProjectId.make("active"),
+      title: "Parent",
+      ...overrides,
+    });
+  }
+
+  function mockSidebar(input: {
+    readonly threads: readonly EnvironmentThreadShell[];
+    readonly routeThread: EnvironmentThreadShell;
+    readonly serverConfigs?: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
+  }) {
+    const activeProject = project("active");
+    const routeThreadRef = scopeThreadRef(input.routeThread.environmentId, input.routeThread.id);
+    vi.mocked(useNowMinute).mockReturnValue("2026-01-02T00:01");
+    vi.mocked(useProjects).mockReturnValue([activeProject]);
+    vi.mocked(useServerConfigs).mockReturnValue(input.serverConfigs ?? new Map());
+    vi.mocked(useQuietThreadShells).mockReturnValue(input.threads);
+    vi.mocked(useThreadRouteTarget).mockReturnValue({ kind: "server", threadRef: routeThreadRef });
+    vi.mocked(useHandleNewThread).mockReturnValue({
+      activeDraftThread: null,
+      activeThread: null,
+      defaultProjectRef: { environmentId, projectId: activeProject.id },
+      defaultProjectFallbackReady: true,
+      handleNewThread: vi.fn().mockResolvedValue(null),
+      routeDraftId: null,
+      routeThreadRef,
+    });
+  }
+
+  const sidebarTree = () => (
+    <SidebarProvider>
+      <Sidebar routeReveal={{ observedKey: null, pendingKey: null }} />
+    </SidebarProvider>
+  );
+
+  const renderedRowKeys = (screen: { container: HTMLElement }) =>
+    Array.from(screen.container.querySelectorAll<HTMLElement>("[data-thread-item]"), (row) =>
+      row.getAttribute("data-thread-item"),
+    );
+
+  function useCleanSidebarStorage(stack: DisposableStack, settings = DEFAULT_CLIENT_SETTINGS) {
+    const previousSettings = getClientSettings();
+    stack.defer(() => __setClientSettingsForTests(previousSettings));
+    __setClientSettingsForTests(settings);
+    localStorage.removeItem(COLLAPSED_PARENTS_KEY);
+    stack.defer(() => localStorage.removeItem(COLLAPSED_PARENTS_KEY));
+  }
+
+  it("shows live children right under their parent", async () => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack);
+    const parent = parentThread();
+    const children = [runningChild(1), runningChild(2)];
+    const other = threadShell(ProjectId.make("active"), 7);
+    mockSidebar({ threads: [other, children[1]!, parent, children[0]!], routeThread: parent });
+    await using screen = await render(sidebarTree());
+    await expect.element(screen.getByText("Child 2").first()).toBeInTheDocument();
+
+    const keys = renderedRowKeys(screen);
+    const parentIndex = keys.indexOf(rowKey(parent));
+    expect(parentIndex).toBeGreaterThanOrEqual(0);
+    expect(keys.slice(parentIndex, parentIndex + 3)).toEqual([
+      rowKey(parent),
+      rowKey(children[0]!),
+      rowKey(children[1]!),
+    ]);
+    expect(screen.container.querySelectorAll('[data-testid="sidebar-row-child"]')).toHaveLength(2);
+  });
+
+  it("collapses and remembers", async () => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack);
+    const parent = parentThread();
+    mockSidebar({ threads: [parent, runningChild(1), runningChild(2)], routeThread: parent });
+    {
+      await using screen = await render(sidebarTree());
+      await expect.element(screen.getByText("Child 1").first()).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Collapse child threads" }));
+      await expect.element(screen.getByText("Child 1")).not.toBeInTheDocument();
+      await expect.element(screen.getByText("Child 2")).not.toBeInTheDocument();
+      await expect.element(screen.getByText("2 children")).toBeVisible();
+      // A hidden child is working, so the chip says so.
+      expect(
+        screen.container.querySelector('[data-testid="sidebar-child-chip"] svg'),
+      ).not.toBeNull();
+      // Collapsing does not open the parent's thread.
+      expect(screen.router!.state.location.pathname).toBe("/");
+    }
+    expect(JSON.parse(localStorage.getItem(COLLAPSED_PARENTS_KEY) ?? "[]")).toContain(
+      rowKey(parent),
+    );
+
+    await using remounted = await render(sidebarTree());
+    await expect.element(remounted.getByText("2 children")).toBeVisible();
+    expect(remounted.container.querySelector('[data-testid="sidebar-row-child"]')).toBeNull();
+    await userEvent.click(remounted.getByRole("button", { name: "Expand child threads" }));
+    await expect.element(remounted.getByText("Child 1").first()).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(COLLAPSED_PARENTS_KEY) ?? "[]")).not.toContain(
+      rowKey(parent),
+    );
+  });
+
+  it("collapsed chip counts twelve", async () => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack);
+    const parent = parentThread();
+    const children = Array.from({ length: 12 }, (_, index) => runningChild(index + 1));
+    mockSidebar({ threads: [parent, ...children.toReversed()], routeThread: parent });
+    await using screen = await render(sidebarTree());
+    await expect.element(screen.getByText("Child 12").first()).toBeInTheDocument();
+    // Twelve parallel children render in creation order.
+    const keys = renderedRowKeys(screen);
+    const parentIndex = keys.indexOf(rowKey(parent));
+    expect(keys.slice(parentIndex + 1, parentIndex + 13)).toEqual(children.map(rowKey));
+    await userEvent.click(screen.getByRole("button", { name: "Collapse child threads" }));
+    await expect.element(screen.getByText("12 children")).toBeVisible();
+  });
+
+  it("clicking a child opens it, and the open child is the active row", async () => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack);
+    const parent = parentThread();
+    const child = runningChild(1);
+    mockSidebar({ threads: [parent, child, runningChild(2)], routeThread: parent });
+    await using screen = await render(sidebarTree());
+    await userEvent.click(screen.getByText("Child 1").first());
+    await vi.waitFor(() =>
+      expect(screen.router!.state.location.pathname).toContain(String(child.id)),
+    );
+
+    mockSidebar({ threads: [parent, child, runningChild(2)], routeThread: child });
+    await screen.rerender(sidebarTree());
+    const childRow = screen.container.querySelector<HTMLElement>(
+      `[data-sidebar-row="${rowKey(child)}"]`,
+    )!;
+    const parentRow = screen.container.querySelector<HTMLElement>(
+      `[data-sidebar-row="${rowKey(parent)}"]`,
+    )!;
+    await vi.waitFor(() => expect(childRow.getAttribute("aria-current")).toBe("page"));
+    expect(parentRow.getAttribute("aria-current")).toBeNull();
+    // Arrow keys treat the child as nested under its parent.
+    expect(childRow.dataset.sidebarParent).toBe(rowKey(parent));
+  });
+
+  it("child rows are not reorderable or jump targets", async () => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack);
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    const parent = parentThread();
+    const children = [runningChild(1), runningChild(2)];
+    mockSidebar({ threads: [parent, ...children], routeThread: parent });
+    await using screen = await render(sidebarTree());
+    await expect.element(screen.getByText("Child 2").first()).toBeInTheDocument();
+    await userEvent.keyboard("{Control>}");
+    // Drafts left by other test files can take the first numbers, so no exact label is assumed.
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector(`[data-thread-item="${rowKey(parent)}"]`)?.textContent)
+        .toMatch(/Ctrl\+\d/),
+    );
+    const lastProps = (thread: EnvironmentThreadShell) =>
+      vi
+        .mocked(SortableThreadRow)
+        .mock.calls.findLast(([props]) => props.sortableId === rowKey(thread))?.[0];
+    expect(lastProps(parent)?.jumpLabel).toMatch(/^Ctrl\+\d$/);
+    for (const child of children) {
+      expect(lastProps(child)?.variant).toBe("child");
+      expect(lastProps(child)?.jumpLabel).toBeNull();
+      expect(lastProps(child)?.sortableDisabled).toBe(true);
+      const row = screen.container.querySelector(`[data-thread-item="${rowKey(child)}"]`);
+      expect(row?.textContent).not.toMatch(/Ctrl\+\d/);
+    }
+    await userEvent.keyboard("{/Control}");
+    // The sweep and drag lists hold listed threads only.
+    const { draggableThreadKeys } = resolveSidebarReorderableThreadKeys({
+      threads: filterSidebarV2VisibleThreads([parent, ...children], null, new Set()),
+      serverConfigs: new Map([[environmentId, {} as EnvironmentServerConfig]]),
+      connectedEnvironmentIds: [environmentId],
+    });
+    expect([...draggableThreadKeys]).toEqual([rowKey(parent)]);
+  });
+
+  it("settled parent still shows its running child", async () => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack);
+    const parent = parentThread({
+      settledOverride: "settled",
+      settledAt: "2026-01-01T12:00:00.000Z",
+    });
+    const child = runningChild(1);
+    const other = threadShell(ProjectId.make("active"), 7);
+    const serverConfig = {
+      scratchWorkspaceRoot: null,
+      shellThreadFamilies: false,
+      environment: { capabilities: {} },
+    } as unknown as EnvironmentServerConfig;
+    mockSidebar({
+      threads: [other, parent, child],
+      routeThread: other,
+      serverConfigs: new Map([[environmentId, serverConfig]]),
+    });
+    await using screen = await render(sidebarTree());
+    const shelf = screen.container.querySelector<HTMLElement>(
+      '[data-sidebar-row="shelf:settled"]',
+    )!;
+    await vi.waitFor(() => expect(shelf).not.toBeNull());
+    if (shelf.getAttribute("aria-expanded") === "false") await act(() => shelf.click());
+    await expect.element(screen.getByText("Child 1").first()).toBeInTheDocument();
+    const keys = renderedRowKeys(screen);
+    expect(keys.indexOf(rowKey(child))).toBe(keys.indexOf(rowKey(parent)) + 1);
+  });
+
+  it("offers no lifecycle actions in a child's menu", async () => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack);
+    const show = vi.fn().mockResolvedValue(null);
+    vi.mocked(readLocalApi).mockReturnValue({ contextMenu: { show } } as unknown as LocalApi);
+    vi.mocked(readEnvironmentScope).mockReturnValue(true);
+    const parent = parentThread();
+    const child = runningChild(1);
+    const serverConfig = {
+      scratchWorkspaceRoot: null,
+      shellThreadFamilies: false,
+      environment: { capabilities: { threadAutoSettleOptOut: true } },
+    } as unknown as EnvironmentServerConfig;
+    mockSidebar({
+      threads: [parent, child],
+      routeThread: parent,
+      serverConfigs: new Map([[environmentId, serverConfig]]),
+    });
+    await using screen = await render(sidebarTree());
+    const menuIds = (items: readonly { id: string; children?: readonly { id: string }[] }[]) =>
+      items.flatMap((item) => [item.id, ...(item.children ?? []).map((entry) => entry.id)]);
+
+    await userEvent.click(screen.getByText("Parent").first(), { button: "right" });
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(1));
+    // The same environment gives the parent its lifecycle actions.
+    expect(menuIds(show.mock.lastCall![0])).toEqual(
+      expect.arrayContaining(["settle", "snooze", "pin", "rename"]),
+    );
+
+    await userEvent.click(screen.getByText("Child 1").first(), { button: "right" });
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(2));
+    const childIds = menuIds(show.mock.lastCall![0]);
+    expect(childIds).toEqual(expect.arrayContaining(["mark-unread", "copy", "copy-thread-id"]));
+    for (const lifecycle of [
+      "pin",
+      "unpin",
+      "settle",
+      "unsettle",
+      "snooze",
+      "unsnooze",
+      "auto-settle",
+      "rename",
+      "regenerate-title",
+      "turn-into-project",
+      "archive",
+      "delete",
+    ]) {
+      expect(childIds).not.toContain(lifecycle);
+    }
+  });
+
+  it.each([
+    { mode: "cards", boring: false },
+    { mode: "folders", boring: true },
+  ])("indents a child past its parent's title ($mode)", async ({ boring }) => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack, { ...DEFAULT_CLIENT_SETTINGS, boringSidebarEnabled: boring });
+    const style = document.createElement("style");
+    style.textContent = appCss;
+    document.head.append(style);
+    stack.defer(() => style.remove());
+    const parent = parentThread();
+    mockSidebar({ threads: [parent, runningChild(1)], routeThread: parent });
+    await using screen = await render(sidebarTree());
+    await expect.element(screen.getByText("Child 1").first()).toBeInTheDocument();
+    const left = (text: string) =>
+      (screen.getByText(text).first().element() as HTMLElement).getBoundingClientRect().left;
+    expect(left("Child 1")).toBeGreaterThan(left("Parent"));
   });
 });

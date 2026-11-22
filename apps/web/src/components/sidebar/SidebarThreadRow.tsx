@@ -589,7 +589,7 @@ const TOP_STATUS_ICONS = {
   woke: AlarmClockIcon,
 } as const;
 
-function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: string }) {
+export function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: string }) {
   const Icon = TOP_STATUS_ICONS[props.icon];
   return <Icon aria-hidden className={cn("shrink-0", props.className)} />;
 }
@@ -602,6 +602,8 @@ type SidebarThreadRowProps = {
   // lifecycle of its own (settle, snooze, pin, rename), since it ends with its parent.
   variant: "card" | "slim" | "folder" | "folder-multiline" | "child";
   childConnector?: SidebarChildConnectorShape | undefined;
+  // The chevron that folds this row's running children, when it has any.
+  childToggle?: ReactNode;
   navigationParent?: string | undefined;
   variantAction: SidebarSweepAction;
   settlementSupported: boolean;
@@ -1423,7 +1425,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           ? {
               style: {
                 ...sortableRootProps.style,
-                paddingInlineStart: sidebarChildInsetPx(childConnector.depth),
+                paddingInlineStart: sidebarChildInsetPx(
+                  childConnector.depth,
+                  childConnector.offsetPx,
+                ),
               },
             }
           : {})}
@@ -1476,6 +1481,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         >
           {/* `contents` keeps one-line rows a single flex row. */}
           <div className={multiline ? "flex h-6 min-w-0 items-center gap-2.5" : "contents"}>
+            {props.childToggle}
             {inFolder ? null : (
               <span
                 className={cn(
@@ -1690,6 +1696,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           )}
         >
           <div className="flex h-5 min-w-0 items-center gap-1.5">
+            {props.childToggle}
             {draftIndicator}
             {props.project ? (
               <ProjectFavicon project={props.project} className="size-4 shrink-0" />
