@@ -7,7 +7,9 @@
   "features": {
     "ghcr.io/devcontainers/features/node:2": {
       "version": "26"
-    }
+    },
+    // `gh codespace ssh` needs a server in the container.
+    "ghcr.io/devcontainers/features/sshd:1": {}
   },
   "remoteUser": "vscode"
 }
