@@ -19,12 +19,24 @@ on:
         type: boolean
         required: false
         default: true
+  # The daily build runs these checks on its rebased tree before publishing.
+  workflow_call:
+    inputs:
+      upstream_sha:
+        description: Upstream main commit the daily sync rebased the arbre patch onto.
+        type: string
+        required: true
+      checks:
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read
 
+# A called run carries its caller's workflow name, so it never cancels a push run.
 concurrency:
-  group: arbre-ci-${{ github.ref }}-${{ inputs.tests }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.tests }}
   cancel-in-progress: true
 
 env:
@@ -51,6 +63,12 @@ jobs:
             !/.repos/
             !/apps/mobile/modules/t3-terminal/Vendor/**/*.a
           sparse-checkout-cone-mode: false
+
+      - name: Rebase onto upstream main
+        if: inputs.upstream_sha
+        uses: ./.github/actions/arbre-rebased-tree
+        with:
+          upstream-sha: ${{ inputs.upstream_sha }}
 
       - name: Setup Vite+
         uses: ./.github/actions/setup-ci-deps
