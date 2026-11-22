@@ -122,4 +122,5 @@ jobs:
 
       - name: Format check
         if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
-        run: vp run fmt:check
+        # On failure, print the formatter's fix so it can be applied without a local install.
+        run: vp run fmt:check || { vp fmt >/dev/null; git --no-pager diff; exit 1; }
