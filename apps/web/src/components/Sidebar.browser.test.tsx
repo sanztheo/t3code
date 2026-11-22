@@ -920,8 +920,9 @@ describe("sidebar child threads", () => {
     await userEvent.keyboard("{Control>}");
     // Drafts left by other test files can take the first numbers, so no exact label is assumed.
     await vi.waitFor(() =>
-      expect(screen.container.querySelector(`[data-thread-item="${rowKey(parent)}"]`)?.textContent)
-        .toMatch(/Ctrl\+\d/),
+      expect(
+        screen.container.querySelector(`[data-thread-item="${rowKey(parent)}"]`)?.textContent,
+      ).toMatch(/Ctrl\+\d/),
     );
     const lastProps = (thread: EnvironmentThreadShell) =>
       vi
