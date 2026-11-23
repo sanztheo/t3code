@@ -14,14 +14,17 @@ import type { ComposerHandleRef } from "../../composerHandleContext";
 export function usePasteToFocusComposer(
   activeThreadId: ThreadId | null,
   composerRef: ComposerHandleRef,
+  /** The chat's root, until it mounts the document. */
+  chatRoot: HTMLElement | null,
 ) {
   const pasteAsTextShortcutUntilRef = useRef(0);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- attaches window keydown and paste capture listeners that route stray pastes into the composer
   useEffect(() => {
     if (!activeThreadId) return;
+    const root = chatRoot ?? document;
     const keyHandler = (event: KeyboardEvent) => {
       if (
-        shouldRedirectInputToComposer(event) &&
+        shouldRedirectInputToComposer(event, root) &&
         isPasteAsTextShortcut(event, isMacPlatform(navigator.platform))
       ) {
         pasteAsTextShortcutUntilRef.current = Date.now() + 1_000;
@@ -31,7 +34,7 @@ export function usePasteToFocusComposer(
       if (isCommandPaletteOpen() || isInSideChatPane(event.target)) return;
       if (getTerminalFocusOwner() !== null) return;
       if (composerRef.current?.isModelPickerOpen()) return;
-      const text = pasteTextToFocusComposer(event);
+      const text = pasteTextToFocusComposer(event, root);
       const clipboardData = event.clipboardData;
       if (text === null || clipboardData === null) return;
       const bypassAutoAttachment = Date.now() <= pasteAsTextShortcutUntilRef.current;
@@ -47,5 +50,5 @@ export function usePasteToFocusComposer(
       window.removeEventListener("keydown", keyHandler, true);
       window.removeEventListener("paste", handler, true);
     };
-  }, [activeThreadId, composerRef]);
+  }, [activeThreadId, chatRoot, composerRef]);
 }

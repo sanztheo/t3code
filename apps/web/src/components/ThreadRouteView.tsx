@@ -13,14 +13,16 @@ import { BackgroundThreadContext, HiddenThreadContext } from "./chat/backgroundT
 import { Button } from "./ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "./ui/empty";
 import { SidebarInset } from "./ui/sidebar";
-import { focusSplitPane, splitPaneTargetProps } from "./splitView/splitDrag";
-import { findSplitGroup } from "./splitView/splitLayout.logic";
+import { splitPaneTargetProps } from "./splitView/splitDrag";
+import { findSplitGroup, nextSplitPane } from "./splitView/splitLayout.logic";
 import { SplitPaneThread } from "./splitView/SplitPaneThread";
 import { SplitDropPreview, SplitThreadLayout } from "./splitView/SplitThreadLayout";
 import { useSplitViewStore } from "./splitView/splitViewStore";
 import { useComposerDraftStore } from "../composerDraftStore";
+import { useComposerHandleContext } from "../composerHandleContext";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
 import {
+  readThreadShell,
   useEnvironmentThreadRefs,
   useAnyEnvironmentHiding,
   useQuietThreadShell,
@@ -177,26 +179,58 @@ export function ThreadRouteView({
     environmentUnreachable,
   });
   const environmentHasAnyThreads = environmentThreadRefs.length > 0 || environmentHasDraftThreads;
-  const splitGroup = useSplitViewStore((store) =>
-    serverThreadRef === null
-      ? null
-      : findSplitGroup(store.groups, scopedThreadKey(serverThreadRef)),
+  const routeThreadKey = serverThreadRef === null ? null : scopedThreadKey(serverThreadRef);
+  // A centre drop on the route's own pane shows the group with its replacement until the route
+  // follows, rather than the replaced thread alone for a moment.
+  const shownThreadKey = useSplitViewStore((store) =>
+    store.replacement !== null && store.replacement.from === routeThreadKey
+      ? store.replacement.to
+      : routeThreadKey,
   );
-  const showSplitPane = (threadKey: string) => {
+  const splitGroup = useSplitViewStore((store) =>
+    shownThreadKey === null ? null : findSplitGroup(store.groups, shownThreadKey),
+  );
+  const composerHandle = useComposerHandleContext();
+  const showSplitPane = (threadKey: string, options?: { replace: boolean }) => {
     const threadRef = parseScopedThreadKey(threadKey);
     if (threadRef === null) return Promise.resolve();
-    return navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(threadRef) });
+    return navigate({
+      to: "/$environmentId/$threadId",
+      params: buildThreadRouteParams(threadRef),
+      replace: options?.replace ?? false,
+    });
   };
-  const closeSplitPane = (threadKey: string) => {
-    const nextThreadKey = useSplitViewStore.getState().closePane(threadKey);
-    const routeThreadKey = serverThreadRef === null ? null : scopedThreadKey(serverThreadRef);
-    const closedActivePane = threadKey === routeThreadKey;
-    const focusedThreadKey = closedActivePane ? nextThreadKey : routeThreadKey;
-    if (focusedThreadKey === null) return;
-    // The closed pane's button held the focus; it goes to the pane that is active afterwards.
-    const shown = closedActivePane ? showSplitPane(focusedThreadKey) : Promise.resolve();
-    void shown.then(() => focusSplitPane(focusedThreadKey));
+  // A pane takes over only when its route would show its thread.
+  const canShowSplitPane = (paneKey: string) => {
+    const paneRef = parseScopedThreadKey(paneKey);
+    const shell = paneRef === null ? null : readThreadShell(paneRef);
+    return (
+      paneRef !== null &&
+      shell !== null &&
+      shell.deletedAt == null &&
+      !hiddenKeys.has(threadKey(paneRef))
+    );
   };
+  const closeSplitPane = (paneKey: string) => {
+    const { closePane } = useSplitViewStore.getState();
+    if (paneKey !== routeThreadKey) {
+      closePane(paneKey);
+      // The closed pane's button held the focus; it goes back to the active pane's composer.
+      composerHandle?.current?.focusAtEnd();
+      return;
+    }
+    const nextThreadKey =
+      splitGroup === null ? null : nextSplitPane(splitGroup, paneKey, canShowSplitPane);
+    // The route moves first: closing its own pane before would show that thread alone for a
+    // moment. The pane taking over focuses its composer as the route enters it.
+    if (nextThreadKey === null) closePane(paneKey);
+    else void showSplitPane(nextThreadKey).then(() => closePane(paneKey));
+  };
+  // A thread deleted while active in a group hands the route to a pane that still shows.
+  const takeoverThreadKey =
+    renderState === "missing" && splitGroup !== null && routeThreadKey !== null
+      ? nextSplitPane(splitGroup, routeThreadKey, canShowSplitPane)
+      : null;
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears pending file drops and navigates the router home once a server thread is confirmed missing
   useEffect(() => {
@@ -206,11 +240,29 @@ export function ThreadRouteView({
     if (renderState === "missing") {
       const { clearPendingFileDropsForThread } = useSidebarPendingFileDropStore.getState();
       clearPendingFileDropsForThread(target.threadRef);
-      if (environmentHasAnyThreads && !background) {
+      if (background) return;
+      if (takeoverThreadKey !== null) {
+        const takeoverRef = parseScopedThreadKey(takeoverThreadKey);
+        if (takeoverRef !== null) {
+          void navigate({
+            to: "/$environmentId/$threadId",
+            params: buildThreadRouteParams(takeoverRef),
+            replace: true,
+          });
+        }
+      } else if (environmentHasAnyThreads) {
         void navigate({ to: "/", replace: true });
       }
     }
-  }, [background, bootstrapComplete, environmentHasAnyThreads, navigate, renderState, target]);
+  }, [
+    background,
+    bootstrapComplete,
+    environmentHasAnyThreads,
+    navigate,
+    renderState,
+    takeoverThreadKey,
+    target,
+  ]);
 
   let view: React.ReactNode = null;
   let redirect: React.ReactNode = null;
@@ -285,7 +337,7 @@ export function ThreadRouteView({
       ) : (
         <SplitThreadLayout
           group={splitGroup}
-          activeThreadKey={scopedThreadKey(target.threadRef)}
+          activeThreadKey={shownThreadKey ?? scopedThreadKey(target.threadRef)}
           onActivate={showSplitPane}
           onClose={closeSplitPane}
           renderPane={(slot) => <SplitPaneThread {...slot} />}

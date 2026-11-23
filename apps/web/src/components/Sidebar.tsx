@@ -1876,10 +1876,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     restoreDragScroll();
     const threads = contextDragThreads();
     // Over the composer the thread becomes context; over the rest of a chat it splits the pane.
-    if (!dropThreadContext(point, threads)) {
-      const splitThread = dropSplitDrag(point, threads);
-      if (splitThread !== null) void navigateToThread(splitThread);
-    }
+    if (!dropThreadContext(point, threads)) dropSplitDrag(point, threads, navigateToThread);
     return true;
   };
   // useSensor memoizes options identity; fresh options rebuild DndContext and every sortable row.

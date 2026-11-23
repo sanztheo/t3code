@@ -2964,6 +2964,7 @@ export default function ChatView(props: ChatViewProps) {
     enabled: activeThreadId !== null && !backgroundThread,
     embedded,
     composerElement: composerOverlayElement,
+    chatRoot: workspaceLayoutElement,
     keybindings,
     scriptKeybindings,
     getShortcutContext,
@@ -3036,7 +3037,11 @@ export default function ChatView(props: ChatViewProps) {
     closeActiveRightPanelSurfaceStable,
   ]);
 
-  usePasteToFocusComposer(embedded || backgroundThread ? null : activeThreadId, composerRef);
+  usePasteToFocusComposer(
+    embedded || backgroundThread ? null : activeThreadId,
+    composerRef,
+    workspaceLayoutElement,
+  );
   // A delegated task is a remote thread's subagent.
   const isSubagentThread =
     activeThread?.lineage.relationshipToParent === "subagent" || delegatedFrom !== null;
@@ -4343,7 +4348,8 @@ export default function ChatView(props: ChatViewProps) {
         worktreePath={activeThread?.worktreePath ?? null}
         onConfirm={onConfirmRevertStable}
       />
-      {embedded ? null : <LinkPullRequestDialogHost />}
+      {/* One dialog for the palette command: the active split pane's, not one per pane. */}
+      {embedded || backgroundThread ? null : <LinkPullRequestDialogHost />}
       <ThreadVisitWatermark threadRef={routeThreadRef} />
       <ExpandedImageDialogHost threadKey={routeThreadKey} />
     </div>
