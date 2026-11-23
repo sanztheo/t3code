@@ -3525,14 +3525,12 @@ export default function ChatView(props: ChatViewProps) {
     onToggleRightPanel: toggleRightPanelStable,
   } satisfies PanelLayoutControlsProps;
   const panelToggleControls = (
-    <>
-      <PanelLayoutControls
-        {...panelToggleControlProps}
-        showThreadPanelControl={!inlineRightPanelOwnsTitleBar}
-      />
-      {splitPane ? <SplitPaneCloseButton onClose={splitPane.onClose} /> : null}
-    </>
+    <PanelLayoutControls
+      {...panelToggleControlProps}
+      showThreadPanelControl={!inlineRightPanelOwnsTitleBar}
+    />
   );
+  const closePaneControl = splitPane ? <SplitPaneCloseButton onClose={splitPane.onClose} /> : null;
   const threadPanelHeaderControl = <ThreadPanelHeaderControl {...panelToggleControlProps} />;
   const panelLayoutControls = (
     <WorkspaceTitlebarControls
@@ -3544,6 +3542,7 @@ export default function ChatView(props: ChatViewProps) {
       onToggleMaximized={toggleRightPanelMaximizedStable}
     >
       {panelToggleControls}
+      {closePaneControl}
     </WorkspaceTitlebarControls>
   );
   const workspaceFileDropHandlers = makeWorkspaceFileDropHandlers({
@@ -3615,13 +3614,14 @@ export default function ChatView(props: ChatViewProps) {
               parentThreadLink={headerParentThreadLink}
               onOpenThread={onOpenRelatedThreadStable}
               rightPanelOpen={inlineRightPanelOwnsTitleBar}
-              reservePaneCloseControl={splitPane !== undefined}
               onNewThreadInProject={handleNewThreadInActiveProjectStable}
               {...(activeDraftLogicalProjectKey
                 ? { onOpenProjectSettings: handleOpenDraftProjectSettingsStable }
                 : {})}
               {...(threadFindEnabled ? { onFindInThread: openThreadFindStable } : {})}
             />
+            {/* The sheet's controls belong to its panel; the pane keeps its own close button. */}
+            {rightPanelControlsInPanel ? closePaneControl : null}
           </header>
         )}
 
