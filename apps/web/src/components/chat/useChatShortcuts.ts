@@ -38,6 +38,8 @@ interface ChatShortcutsInput {
    */
   readonly embedded?: boolean;
   readonly composerElement?: HTMLElement | null;
+  /** The chat's root; type-to-focus skips it only while its own column is maximized away. */
+  readonly chatRoot?: HTMLElement | null;
   readonly keybindings: ResolvedKeybindingsConfig;
   readonly scriptKeybindings: ResolvedKeybindingsConfig;
   readonly getShortcutContext: (target: EventTarget | null) => ShortcutMatchContext & {
@@ -85,7 +87,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
       !inSideChatPane &&
       !shortcutContext.terminalFocus &&
       !shortcutContext.modelPickerOpen &&
-      shouldTypeToFocusComposer(event) &&
+      shouldTypeToFocusComposer(event, input.chatRoot ?? document) &&
       input.composerRef.current?.insertTextAtEnd(event.key) === true
     ) {
       event.preventDefault();

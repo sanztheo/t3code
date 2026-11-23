@@ -9,17 +9,17 @@
 ## Décisions
 
 1. **No new dependency.** The rules are ported, not installed: `arbre` is rebased on upstream every 3 hours and a `pnpm-lock.yaml` change would conflict every time.
-2. **Drop region:** the nearest edge when the pointer is within 25 % of the pane's width or height; tie order left, bottom, right, top (as the source). The preview shows the half the new pane will take; at the centre it covers the whole pane.
+2. **Drop region:** the nearest edge when the pointer is within 25 % of the pane's width or height; tie order left, bottom, right, top (as the source). The preview shows the place the new pane will take in the layout the drop produces (half the pane, or a third when its row already runs that way); at the centre it covers the whole pane.
 3. **Centre drop = show the dragged thread in that pane.** In a group, it replaces the pane's thread, which leaves the group. Over a lone thread, nothing splits and the dragged thread simply opens (as a click on it would).
 4. **Composer keeps its drop.** Dropping on the composer still adds the thread as context to the next message, as before; anywhere else in the chat splits. A multi-selection drag only goes to the composer.
 5. **Four panes at most.** A full group offers only the centre (replace). Nested splits of any shape are allowed within the four (three side by side, 2×2, one plus two stacked…).
 6. **Equal sizes, no resize handle.** Each split shares its space equally. The existing `useResizeDrag` only resizes horizontally, and a vertical one would be new code nobody asked for yet.
 7. **Active pane = the route's thread.** Pressing or focusing an inactive pane navigates to its thread, so the URL, the sidebar highlight and Back/Forward follow the active pane. Inactive panes stand their window-wide shortcuts, paste-to-composer, refocus-on-window-focus and desktop snapshot focus down; the command palette drives the active pane's composer only.
 8. **Groups.** A thread belongs to one group at most. Dragging a thread that is in another group moves it out of that group. A group left with one pane dissolves, and that thread shows alone again. Opening a thread outside any group shows it alone; the groups stay saved.
-9. **Close X** in a slim title bar above each pane (title of the thread, highlighted when active). Closing the active pane makes the pane beside it (reading order) active; the keyboard goes back to the active pane's composer.
+9. **Close X** in a slim title bar above each pane (title of the thread, highlighted when active). Closing the active pane makes the pane beside it (reading order) active; the route moves first, so the closed thread never shows alone. The keyboard goes back to the active pane's composer, except when a press inside a pane made it active: the focus stays where the press put it.
 10. **Persistence:** `localStorage` key `t3code:split-view:v1`, decoded on every load; an unreadable or oversized group is dropped instead of breaking the chat.
 11. **Panes are siblings placed from the tree** (absolute positions in percent), keyed by thread, so splitting, closing or moving a pane never remounts the other panes. Going from a lone thread to a group (and back) remounts that one chat once: the lone path must stay exactly as upstream renders it so draft promotion keeps its `ChatView`.
-12. **Deleted thread in a group:** its pane says « This thread is no longer available. » and keeps its close X.
+12. **Deleted or hidden thread in a group:** its pane says « This thread is no longer available. », hides its title and keeps its close X; it cannot be made active. A member the route itself would not open (hidden by the tag filter, or off the shell list while a filter hides) shows the same way. When the active pane's thread is deleted, the pane beside it that still shows takes over, as on close, instead of the route going home.
 
 ## Not covered
 
@@ -30,4 +30,7 @@
 ## Tests
 
 - `apps/web/src/components/splitView/splitLayout.logic.test.ts`: drop regions and tie order, split insertion, 2×2 grid, centre replace, four-pane limit, moves between and within groups, close and normalization, saved-state decoding.
-- `apps/web/src/components/splitView/SplitThreadLayout.browser.test.tsx`: 2×2 placement and active pane, activation on press but not on close, drag preview rectangle and drop into the store, multi-selection ignored.
+- `apps/web/src/components/splitView/SplitThreadLayout.browser.test.tsx`: 2×2 placement and active pane, activation on press but not on close nor on an unavailable pane, drag preview rectangle and drop into the store, multi-selection ignored.
+- `apps/web/src/components/chat/useFocusComposerOnThreadOpen.browser.test.tsx`: a press inside a split pane keeps its focus when the pane becomes active.
+- `apps/web/src/components/RightPanelTabs.browser.test.tsx`: an inactive pane's empty right panel leaves its letter shortcuts alone.
+- `apps/web/src/components/chat/composerFocusRedirect.browser.test.ts`: another chat maximizing its panel leaves type-to-composer and paste redirect working.
