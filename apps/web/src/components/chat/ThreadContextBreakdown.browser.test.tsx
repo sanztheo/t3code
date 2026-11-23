@@ -53,6 +53,10 @@ function usage(updatedAt: string): ContextWindowSnapshot {
 
 const distinctRevisions = () => new Set(state.revisions).size;
 
+// The whole Context row is the toggle, not only its chevron.
+const contextRow = (screen: Awaited<ReturnType<typeof render>>) =>
+  screen.getByRole("button", { name: /^Context:/ });
+
 it("lists categories with tokens and share of the window", async () => {
   await using screen = await render(<ThreadContextBreakdownList breakdown={fixture} />);
   await expect.element(screen.getByText("155k")).toBeInTheDocument();
@@ -69,6 +73,15 @@ it("unfolds MCP tools into servers", async () => {
   await screen.getByRole("button", { name: "MCP tools", exact: true }).click();
   await expect.element(screen.getByText("linear")).toBeInTheDocument();
   await expect.element(screen.getByText("2 tools")).toBeInTheDocument();
+});
+
+it("lines up swatches of rows with and without a chevron", async () => {
+  await using screen = await render(<ThreadContextBreakdownList breakdown={fixture} />);
+  const lefts = [...screen.container.querySelectorAll<HTMLElement>("[data-swatch]")].map(
+    (swatch) => swatch.getBoundingClientRect().left,
+  );
+  expect(lefts).toHaveLength(fixture.categories.length);
+  expect(new Set(lefts).size).toBe(1);
 });
 
 it("clamps the bar when over the limit", async () => {
@@ -99,7 +112,7 @@ it("asks nothing while folded and once per revision while open", async () => {
     <ThreadDetailsContext usage={usage("2026-11-23T00:00:00.000Z")} breakdownTarget={target} />,
   );
   expect(distinctRevisions()).toBe(0);
-  await screen.getByRole("button", { name: "Context breakdown" }).click();
+  await contextRow(screen).click();
   await expect.element(screen.getByText("77.7%")).toBeInTheDocument();
   expect(distinctRevisions()).toBe(1);
   await screen.rerender(
@@ -118,7 +131,7 @@ it("keeps unfolded categories while a new report loads", async () => {
   await using screen = await render(
     <ThreadDetailsContext usage={usage("2026-11-23T00:00:00.000Z")} breakdownTarget={target} />,
   );
-  await screen.getByRole("button", { name: "Context breakdown" }).click();
+  await contextRow(screen).click();
   await screen.getByRole("button", { name: "MCP tools", exact: true }).click();
   await expect.element(screen.getByText("linear")).toBeInTheDocument();
   state.result = AsyncResult.initial(true);
@@ -126,6 +139,19 @@ it("keeps unfolded categories while a new report loads", async () => {
     <ThreadDetailsContext usage={usage("2026-11-23T00:01:00.000Z")} breakdownTarget={target} />,
   );
   await expect.element(screen.getByText("linear")).toBeInTheDocument();
+});
+
+it("unfolds when the Context label is clicked", async () => {
+  state.result = AsyncResult.success(fixture);
+  await using screen = await render(
+    <ThreadDetailsContext
+      usage={usage("2026-11-23T00:00:00.000Z")}
+      breakdownTarget={{ environmentId, threadId }}
+    />,
+  );
+  await screen.getByText("Context", { exact: true }).click();
+  await expect.element(contextRow(screen)).toHaveAttribute("aria-expanded", "true");
+  await expect.element(screen.getByText("77.7%")).toBeInTheDocument();
 });
 
 it("tells to send a message when the session is gone", async () => {
@@ -138,7 +164,7 @@ it("tells to send a message when the session is gone", async () => {
       breakdownTarget={{ environmentId, threadId }}
     />,
   );
-  await screen.getByRole("button", { name: "Context breakdown" }).click();
+  await contextRow(screen).click();
   await expect.element(screen.getByText("Send a message to see the breakdown")).toBeInTheDocument();
 });
 
@@ -146,5 +172,5 @@ it("shows no chevron without a target", async () => {
   await using screen = await render(
     <ThreadDetailsContext usage={usage("2026-11-23T00:00:00.000Z")} />,
   );
-  expect(screen.getByRole("button", { name: "Context breakdown" }).query()).toBeNull();
+  expect(screen.container.querySelector("button, [aria-expanded]")).toBeNull();
 });
