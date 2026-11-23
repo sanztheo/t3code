@@ -39,9 +39,7 @@ const fixture: ThreadContextBreakdown = {
     { id: "mcp_tools", name: "MCP tools", tokens: 150, kind: "used" },
     { id: "mcp_tools_deferred", name: "MCP tools (deferred)", tokens: 89_300, kind: "deferred" },
   ],
-  details: [
-    { categoryId: "mcp_tools", rows: [{ label: "linear", tokens: 150, note: "2 tools" }] },
-  ],
+  details: [{ categoryId: "mcp_tools", rows: [{ label: "linear", tokens: 150, note: "2 tools" }] }],
 };
 
 function usage(updatedAt: string): ContextWindowSnapshot {
