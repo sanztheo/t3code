@@ -20,6 +20,7 @@
 6. **Labels in English,** as the SDK names its rows and as the rest of the T3 UI is written; new UI strings go through `gt()` like their neighbors.
 7. **Colors** are chosen by the web, not the SDK (its `color` values are CLI theme keys): `used` rows take a blue scale in order, `deferred`, `buffer` and `free` rows are grey. Percentages are of `maxTokens`, deferred rows included, as Desktop shows them.
 8. **Fork stays out of upstream files** where it can, to keep the daily rebase clean: new code goes in new files. `getContextUsage` is declared optional on `ClaudeAgentSdkQuerySession`, so the many upstream test fakes need no change. The session lookup (about 15 lines, also inlined in `ws.ts` for `provider.uploadFeedback`) is written again in the new service rather than extracted from upstream code.
+9. **An open panel keeps its last breakdown when the session idles out** (Sanz, 2026-11-23): the numbers stay true since nothing was sent, and the next message refreshes them; showing « Send a message… » on release would mean carrying session state through upstream `ChatView`. A failed refresh shows « Couldn't load the breakdown » above the last numbers.
 
 ## Global Constraints
 
