@@ -8,6 +8,7 @@ import { commands, page, userEvent } from "vite-plus/test/browser";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "~/components/ui/input-group";
 import type { RightPanelSurface } from "~/rightPanelStore";
 import { act, render, stubGlobal } from "../../test/render";
+import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 import { RightPanelTabs, type RightPanelTabsProps } from "./RightPanelTabs";
 import { subscribePreviewAction } from "./preview/previewActionBus";
@@ -152,7 +153,10 @@ const BROWSER_SURFACE: RightPanelSurface = {
 };
 const DIFF_SURFACE: RightPanelSurface = { id: "diff", kind: "diff" };
 
-function panel(activeSurface: RightPanelSurface) {
+function panel(
+  activeSurface: RightPanelSurface | null,
+  overrides: Partial<RightPanelTabsProps> = {},
+) {
   const noop = () => {};
   const props: RightPanelTabsProps = {
     mode: "inline",
@@ -167,7 +171,7 @@ function panel(activeSurface: RightPanelSurface) {
     }),
     surfaces: [BROWSER_SURFACE, DIFF_SURFACE],
     environmentId: EnvironmentId.make("environment-local"),
-    activeSurfaceId: activeSurface.id,
+    activeSurfaceId: activeSurface?.id ?? null,
     pendingSurfaceIds: new Set(),
     previewSessions: {},
     desktopByTabId: {},
@@ -205,7 +209,7 @@ function panel(activeSurface: RightPanelSurface) {
       </div>
     ),
   };
-  return <RightPanelTabs {...props} />;
+  return <RightPanelTabs {...props} {...overrides} />;
 }
 
 it("drags a Shift-clicked range and closes it from a selected tab's menu", async () => {
@@ -400,5 +404,22 @@ describe("add surface launcher", () => {
     expect(menuListeners.size).toBe(0);
     expect(await pressModT()).toBe(false);
     expect(page.getByRole("menu").query()).toBeNull();
+  });
+});
+
+describe("empty right panel launcher", () => {
+  it("leaves its letter shortcuts to the active chat when its own chat is in the background", async () => {
+    const onAddTerminal = vi.fn();
+    {
+      await using _screen = await render(
+        <BackgroundThreadContext value>{panel(null, { onAddTerminal })}</BackgroundThreadContext>,
+      );
+      await userEvent.keyboard("t");
+      expect(onAddTerminal).not.toHaveBeenCalled();
+      expect(document.querySelector("[data-surface-launcher-keys]")).toBeNull();
+    }
+    await using _screen = await render(panel(null, { onAddTerminal }));
+    await userEvent.keyboard("t");
+    expect(onAddTerminal).toHaveBeenCalledOnce();
   });
 });
