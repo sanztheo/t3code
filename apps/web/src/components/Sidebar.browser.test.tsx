@@ -41,6 +41,7 @@ import {
 } from "./Sidebar.logic";
 import { SortableThreadRow } from "./sidebar/SidebarThreadRow";
 import { SidebarProvider } from "./ui/sidebar";
+import { useSplitViewStore } from "./splitView/splitViewStore";
 
 vi.mock(import("../state/olderSettledShelf"), async (original) => {
   const actual = await original();
@@ -764,6 +765,41 @@ describe("sidebar child threads", () => {
     expect(parentRow.getAttribute("aria-current")).toBeNull();
     // Arrow keys treat the child as nested under its parent.
     expect(childRow.dataset.sidebarParent).toBe(rowKey(parent));
+  });
+
+  it("shows every thread of the open split group as an open row", async () => {
+    using stack = new DisposableStack();
+    useCleanSidebarStorage(stack);
+    const threadFor = (id: string) =>
+      makeThreadFixture({
+        environmentId,
+        id: ThreadId.make(id),
+        projectId: ProjectId.make("active"),
+        title: id,
+      });
+    const [left, right, outside] = [threadFor("left"), threadFor("right"), threadFor("outside")];
+    useSplitViewStore.setState({
+      groups: [
+        {
+          type: "split",
+          orientation: "horizontal",
+          children: [
+            { type: "pane", threadKey: rowKey(left) },
+            { type: "pane", threadKey: rowKey(right) },
+          ],
+        },
+      ],
+    });
+    stack.defer(() => useSplitViewStore.setState({ groups: [] }));
+    mockSidebar({ threads: [left, right, outside], routeThread: left });
+    await using screen = await render(sidebarTree());
+    const openness = (thread: EnvironmentThreadShell) =>
+      screen.container
+        .querySelector(`[data-sidebar-row="${rowKey(thread)}"]`)
+        ?.getAttribute("aria-current");
+    await vi.waitFor(() => expect(openness(left)).toBe("page"));
+    expect(openness(right)).toBe("page");
+    expect(openness(outside)).toBeNull();
   });
 
   it("child rows are not reorderable or jump targets", async () => {

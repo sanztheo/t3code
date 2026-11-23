@@ -53,6 +53,7 @@ env:
     apps/web/src/components/chat/ThreadContextBreakdown.browser.test.tsx
     apps/web/src/components/splitView/splitLayout.logic.test.ts
     apps/web/src/components/splitView/SplitThreadLayout.browser.test.tsx
+    apps/web/src/components/chat/PanelLayoutControls.browser.test.tsx
 
 jobs:
   check:
