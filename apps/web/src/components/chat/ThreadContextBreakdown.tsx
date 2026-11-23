@@ -8,11 +8,12 @@ import type {
 } from "@t3tools/contracts";
 import { useGT } from "gt-react";
 import { ChevronRightIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { formatContextWindowTokens } from "../../lib/contextWindow";
 import { cn } from "../../lib/utils";
 import { useEnvironmentQuery } from "../../state/query";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { threadContextEnvironment } from "../../state/threadContext";
 
 /** Swatches for what fills the window; the rest stays grey (Décision 7). */
@@ -44,10 +45,7 @@ export function ThreadContextBreakdownList({
   readonly breakdown: ThreadContextBreakdown;
 }) {
   const { maxTokens } = breakdown;
-  const detailsById = useMemo(
-    () => new Map(breakdown.details.map((group) => [group.categoryId, group])),
-    [breakdown.details],
-  );
+  const detailsById = new Map(breakdown.details.map((group) => [group.categoryId, group]));
   // Over the limit, segments still fill exactly 100 %.
   const used = breakdown.categories.filter((category) => category.kind === "used");
   const scale = Math.max(
@@ -69,7 +67,10 @@ export function ThreadContextBreakdownList({
               <span
                 key={category.id ?? category.name}
                 data-segment
-                className={cn("h-full first:rounded-l-full last:rounded-r-full", swatchOf(category))}
+                className={cn(
+                  "h-full first:rounded-l-full last:rounded-r-full",
+                  swatchOf(category),
+                )}
                 style={{ width: `${(category.tokens / scale) * 100}%` }}
               />
             ))
@@ -109,7 +110,7 @@ function CategoryRow({
   const muted = category.kind !== "used";
   const content = (
     <>
-      <span className={cn("size-2 shrink-0 rounded-[2px]", swatchOf(category))} />
+      <span className={cn("size-2 shrink-0 rounded-xs", swatchOf(category))} />
       <span className="min-w-0 flex-1 truncate text-start">{category.name}</span>
       <span className="tabular-nums">{formatContextWindowTokens(category.tokens)}</span>
       <span className="w-12 text-end tabular-nums">{shareOf(category.tokens, maxTokens)}</span>
@@ -149,10 +150,17 @@ function CategoryRow({
         <div className="flex flex-col ps-9 pe-1">
           {details.rows.map((row) => (
             <div key={row.label} className="flex h-5 items-center gap-2 text-muted-foreground">
-              <span className="min-w-0 flex-1 truncate" title={row.label}>
-                {row.label}
-              </span>
-              {row.note ? <span className="shrink-0 text-muted-foreground/70">{row.note}</span> : null}
+              <Tooltip>
+                <TooltipTrigger render={<span className="min-w-0 flex-1 truncate" />}>
+                  {row.label}
+                </TooltipTrigger>
+                <TooltipPopup side="left" sideOffset={16}>
+                  {row.label}
+                </TooltipPopup>
+              </Tooltip>
+              {row.note ? (
+                <span className="shrink-0 text-muted-foreground/70">{row.note}</span>
+              ) : null}
               <span className="tabular-nums">{formatContextWindowTokens(row.tokens)}</span>
             </div>
           ))}
@@ -177,14 +185,10 @@ export function ThreadContextBreakdownPanel({
 }) {
   const gt = useGT();
   const query = useEnvironmentQuery(
-    useMemo(
-      () =>
-        threadContextEnvironment.breakdownQuery({
-          environmentId: target.environmentId,
-          input: { threadId: target.threadId, revision },
-        }),
-      [target.environmentId, target.threadId, revision],
-    ),
+    threadContextEnvironment.breakdownQuery({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, revision },
+    }),
   );
   const failure = query.failure as ThreadContextBreakdownError | null;
   const notice =

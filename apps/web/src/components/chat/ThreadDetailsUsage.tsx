@@ -28,7 +28,6 @@ import { formatContextWindowTokens } from "../../lib/contextWindow";
 import { cn } from "../../lib/utils";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { Button } from "../ui/button";
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { UsageAccessDialog } from "../usage/UsageAccessDialog";
 import { formatContextWindowCompactionMessage } from "./compaction.logic";
@@ -215,9 +214,7 @@ export function ThreadDetailsContext({
       title={gt("Context window")}
       showHeading={false}
     >
-      <Collapsible
-        open={breakdownOpen}
-        onOpenChange={setBreakdownOpen}
+      <div
         className={cn(
           "grid gap-x-3 text-xs",
           breakdownTarget
@@ -266,23 +263,26 @@ export function ThreadDetailsContext({
         />
         {breakdownTarget ? (
           <>
-            <CollapsibleTrigger
+            <button
+              type="button"
               aria-label={gt("Context breakdown")}
-              className="-ms-2 flex size-6 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-black/[0.035] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/[0.08]"
+              aria-expanded={breakdownOpen}
+              onClick={() => setBreakdownOpen((open) => !open)}
+              className="-ms-2 flex size-6 cursor-pointer items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-black/[0.035] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:hover:bg-white/[0.08]"
             >
               <ChevronRightIcon
                 aria-hidden
                 className={cn("size-3 transition-transform", breakdownOpen && "rotate-90")}
               />
-            </CollapsibleTrigger>
-            <CollapsiblePanel className="col-span-4">
-              {breakdownOpen ? (
+            </button>
+            {breakdownOpen ? (
+              <div className="col-span-4">
                 <ThreadContextBreakdownPanel target={breakdownTarget} revision={usage.updatedAt} />
-              ) : null}
-            </CollapsiblePanel>
+              </div>
+            ) : null}
           </>
         ) : null}
-      </Collapsible>
+      </div>
     </ThreadDetailsSection>
   );
 }
