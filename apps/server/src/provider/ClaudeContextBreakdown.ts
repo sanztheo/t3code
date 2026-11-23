@@ -127,9 +127,9 @@ export function claudeContextBreakdown(
 }
 
 /** A query from a CLI without `getContextUsage` cannot report one, like a stopped session. */
-export function readClaudeContextBreakdown(
+export function readClaudeContextBreakdown<E>(
   query: {
-    readonly getContextUsage?: Effect.Effect<SDKControlGetContextUsageResponse, unknown>;
+    readonly getContextUsage?: Effect.Effect<SDKControlGetContextUsageResponse, E>;
   },
   driver: ProviderDriverKind,
 ): Effect.Effect<ThreadContextBreakdown, ProviderAdapter.ProviderAdapterV2Error> {
