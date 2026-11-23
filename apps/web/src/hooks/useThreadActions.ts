@@ -630,10 +630,6 @@ export function useThreadActions() {
       now: new Date().toISOString(),
       delegatedUnderParent: readDelegatedUnderParent(),
     });
-    // In a split group the pane beside it takes over, as when its pane closes.
-    const splitTakeoverKey = splitTakeoverThreadKey(scopedThreadKey(threadRef));
-    const splitTakeoverRef =
-      splitTakeoverKey === null ? null : parseScopedThreadKey(splitTakeoverKey);
     let navigatedDuringDelete = false;
     // The missing-thread redirect and the index draft replace this entry; any other history
     // action while the delete is pending is the user's own choice, which must win.
@@ -668,6 +664,11 @@ export function useThreadActions() {
     clearDeletedThreadPanelState(threadRef);
 
     if (shouldNavigateToFallback && !navigatedDuringDelete) {
+      // In a split group the pane beside it takes over, as when its pane closes. Read once the
+      // server answers: the user may have closed panes while the delete was in flight.
+      const splitTakeoverKey = splitTakeoverThreadKey(scopedThreadKey(threadRef));
+      const splitTakeoverRef =
+        splitTakeoverKey === null ? null : parseScopedThreadKey(splitTakeoverKey);
       const fallbackThread = fallbackThreadId
         ? readThreadShell(scopeThreadRef(threadRef.environmentId, fallbackThreadId))
         : null;
