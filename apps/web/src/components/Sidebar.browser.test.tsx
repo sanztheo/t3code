@@ -902,7 +902,8 @@ describe("sidebar child threads", () => {
     await userEvent.click(screen.getByText("Child 1").first(), { button: "right" });
     await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(2));
     const childIds = menuIds(show.mock.lastCall![0]);
-    expect(childIds).toEqual(expect.arrayContaining(["mark-unread", "copy", "copy-thread-id"]));
+    // A child on its first run has no completed run, so Mark unread is hidden too.
+    expect(childIds).toEqual(expect.arrayContaining(["copy", "copy-thread-id"]));
     for (const lifecycle of [
       "pin",
       "unpin",
