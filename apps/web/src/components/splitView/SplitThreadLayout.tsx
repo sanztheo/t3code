@@ -8,11 +8,7 @@ import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "../../workspaceTitlebar";
 import { Button } from "../ui/button";
-import {
-  SPLIT_GROUP_PANE_ATTRIBUTE,
-  splitPaneTargetProps,
-  useSplitDropPreview,
-} from "./splitDrag";
+import { SPLIT_GROUP_PANE_ATTRIBUTE, splitPaneTargetProps, useSplitDropPreview } from "./splitDrag";
 import {
   splitPaneRects,
   type SplitNode,

@@ -224,7 +224,12 @@ describe("splitDropReplacement", () => {
 });
 
 describe("splitPaneAvailability", () => {
-  const listed = { renderState: "ready", listed: true, hiddenByTag: false, hidingAnywhere: false };
+  const listed = {
+    renderState: "ready",
+    listed: true,
+    hiddenByTag: false,
+    hidingAnywhere: false,
+  } as const;
   it.each([
     { input: listed, expected: "ready" },
     { input: { ...listed, renderState: "loading" }, expected: "ready" },

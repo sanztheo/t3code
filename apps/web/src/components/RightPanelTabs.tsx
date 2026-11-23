@@ -507,9 +507,7 @@ function RightPanelEmptyState(props: {
       onKeyDown={handleKeyDown}
       aria-label={gt("Open a surface")}
       data-surface-launcher-keys={
-        backgroundThread
-          ? undefined
-          : availableActions.map((action) => action.shortcut).join("")
+        backgroundThread ? undefined : availableActions.map((action) => action.shortcut).join("")
       }
       className={cn(
         "scrollbar-gutter-both flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 outline-none",
