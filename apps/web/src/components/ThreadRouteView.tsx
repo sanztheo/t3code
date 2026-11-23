@@ -14,15 +14,14 @@ import { Button } from "./ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "./ui/empty";
 import { SidebarInset } from "./ui/sidebar";
 import { splitPaneTargetProps } from "./splitView/splitDrag";
-import { findSplitGroup, nextSplitPane } from "./splitView/splitLayout.logic";
+import { findSplitGroup } from "./splitView/splitLayout.logic";
 import { SplitPaneThread } from "./splitView/SplitPaneThread";
 import { SplitDropPreview, SplitThreadLayout } from "./splitView/SplitThreadLayout";
-import { useSplitViewStore } from "./splitView/splitViewStore";
+import { splitTakeoverThreadKey, useSplitViewStore } from "./splitView/splitViewStore";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { useComposerHandleContext } from "../composerHandleContext";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
 import {
-  readThreadShell,
   useEnvironmentThreadRefs,
   useAnyEnvironmentHiding,
   useQuietThreadShell,
@@ -191,25 +190,10 @@ export function ThreadRouteView({
     shownThreadKey === null ? null : findSplitGroup(store.groups, shownThreadKey),
   );
   const composerHandle = useComposerHandleContext();
-  const showSplitPane = (threadKey: string, options?: { replace: boolean }) => {
+  const showSplitPane = (threadKey: string) => {
     const threadRef = parseScopedThreadKey(threadKey);
     if (threadRef === null) return Promise.resolve();
-    return navigate({
-      to: "/$environmentId/$threadId",
-      params: buildThreadRouteParams(threadRef),
-      replace: options?.replace ?? false,
-    });
-  };
-  // A pane takes over only when its route would show its thread.
-  const canShowSplitPane = (paneKey: string) => {
-    const paneRef = parseScopedThreadKey(paneKey);
-    const shell = paneRef === null ? null : readThreadShell(paneRef);
-    return (
-      paneRef !== null &&
-      shell !== null &&
-      shell.deletedAt == null &&
-      !hiddenKeys.has(threadKey(paneRef))
-    );
+    return navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(threadRef) });
   };
   const closeSplitPane = (paneKey: string) => {
     const { closePane } = useSplitViewStore.getState();
@@ -219,17 +203,17 @@ export function ThreadRouteView({
       composerHandle?.current?.focusAtEnd();
       return;
     }
-    const nextThreadKey =
-      splitGroup === null ? null : nextSplitPane(splitGroup, paneKey, canShowSplitPane);
+    const nextThreadKey = splitTakeoverThreadKey(paneKey);
     // The route moves first: closing its own pane before would show that thread alone for a
-    // moment. The pane taking over focuses its composer as the route enters it.
-    if (nextThreadKey === null) closePane(paneKey);
-    else void showSplitPane(nextThreadKey).then(() => closePane(paneKey));
+    // moment. The pane taking over focuses its composer as the route enters it; with no pane
+    // able to, the route goes home.
+    const left = nextThreadKey === null ? navigate({ to: "/" }) : showSplitPane(nextThreadKey);
+    void left.then(() => closePane(paneKey));
   };
   // A thread deleted while active in a group hands the route to a pane that still shows.
   const takeoverThreadKey =
     renderState === "missing" && splitGroup !== null && routeThreadKey !== null
-      ? nextSplitPane(splitGroup, routeThreadKey, canShowSplitPane)
+      ? splitTakeoverThreadKey(routeThreadKey)
       : null;
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears pending file drops and navigates the router home once a server thread is confirmed missing

@@ -126,10 +126,17 @@ export function focusTerminalOnNavigation(threadRef: ScopedThreadRef, terminalId
   focusTerminal(threadRef, terminalId);
 }
 
-/** Restores composer or terminal focus; explicit terminal navigation takes precedence. */
+/**
+ * Restores composer or terminal focus; explicit terminal navigation takes precedence.
+ * `keepFocus` enters the thread without moving the focus, which the user already placed in it.
+ */
 export function restoreFocusOnThreadEnter(
   threadRef: ScopedThreadRef,
-  content: { readonly root: HTMLElement; readonly focusComposer: () => void },
+  content: {
+    readonly root: HTMLElement;
+    readonly focusComposer: () => void;
+    readonly keepFocus?: boolean;
+  },
 ): () => void {
   const threadKey = scopedThreadKey(threadRef);
   const requestedByHandler =
@@ -156,7 +163,8 @@ export function restoreFocusOnThreadEnter(
     }
   };
   content.root.ownerDocument.addEventListener("focusin", remember);
-  if (!requestedByHandler) {
+  const restores = !requestedByHandler && content.keepFocus !== true;
+  if (restores) {
     const drawer = selectThreadTerminalUiState(
       useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
       threadRef,
@@ -181,7 +189,7 @@ export function restoreFocusOnThreadEnter(
       focusTerminal(threadRef, drawer.activeTerminalId);
     } else content.focusComposer();
   }
-  if (requestedByHandler) remember();
+  if (!restores) remember();
   return () => {
     content.root.ownerDocument.removeEventListener("focusin", remember);
     // A handler navigating elsewhere marks its target before this cleanup runs.
