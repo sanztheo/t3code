@@ -1,3 +1,4 @@
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -7,6 +8,7 @@ import { threadEnvironment } from "../state/threads";
 import { toastManager } from "../components/ui/toast";
 import { useThreadUndoNotice } from "./showThreadUndoNotice";
 import { announce } from "../lib/announce";
+import { useSplitViewStore } from "../components/splitView/splitViewStore";
 
 const commands = vi.hoisted(() => ({
   pin: vi.fn(),
@@ -284,6 +286,30 @@ describe("delete navigation", () => {
     expect((await useThreadActions().deleteThread(target))._tag).toBe("Success");
     expect(router.navigate).toHaveBeenCalledTimes(fallsBack ? 1 : 0);
     expect(router.history.listeners.size).toBe(0);
+  });
+});
+
+describe("delete in a split group", () => {
+  afterEach(() => useSplitViewStore.setState({ groups: [] }));
+
+  it("hands the route to the pane beside the deleted active thread", async () => {
+    const pane = (threadId: string) => ({
+      type: "pane" as const,
+      threadKey: scopedThreadKey(scopeThreadRef(target.environmentId, ThreadId.make(threadId))),
+    });
+    useSplitViewStore.setState({
+      groups: [{ type: "split", orientation: "horizontal", children: [pane("thread"), pane("partner")] }],
+    });
+    router.state.matches[0]!.params = {
+      environmentId: target.environmentId,
+      threadId: target.threadId,
+    };
+    expect((await useThreadActions().deleteThread(target))._tag).toBe("Success");
+    expect(router.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/$environmentId/$threadId",
+      params: { environmentId: target.environmentId, threadId: ThreadId.make("partner") },
+      replace: true,
+    });
   });
 });
 
