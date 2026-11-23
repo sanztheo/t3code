@@ -1,13 +1,11 @@
 import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useGT } from "gt-react";
-import { XIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "../../lib/utils";
-import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "../../workspaceTitlebar";
-import { Button } from "../ui/button";
+import type { SplitPaneChrome } from "./SplitPaneCloseButton";
 import { SPLIT_GROUP_PANE_ATTRIBUTE, splitPaneTargetProps, useSplitDropPreview } from "./splitDrag";
 import {
   splitPaneRects,
@@ -23,8 +21,9 @@ export interface SplitPaneSlot {
   readonly active: boolean;
   /** A pane whose thread is gone or hidden says so instead of showing its chat. */
   readonly availability: SplitPaneAvailability;
-  /** Only the pane under the window's own controls makes room for them. */
+  /** Only the pane under the window's top-right controls makes room for them. */
   readonly reserveTitleBarControlInset: boolean;
+  readonly splitPane: SplitPaneChrome;
 }
 
 interface SplitLayoutHandlers {
@@ -46,7 +45,7 @@ function SplitPane(
 ) {
   const gt = useGT();
   const { rect, active } = props;
-  const { availability, title } = useSplitPaneState(props.threadRef);
+  const { availability } = useSplitPaneState(props.threadRef);
   const activate = (target: EventTarget) => {
     // The close button closes the pane without making it active first, and a pane whose
     // thread is gone or hidden has no route to make active.
@@ -63,6 +62,8 @@ function SplitPane(
         "absolute flex min-h-0 min-w-0 flex-col overflow-hidden border-border",
         rect.left > 0 && "border-l",
         rect.top > 0 && "border-t",
+        // Each pane's own chat header is its title bar; the inactive ones recede.
+        !active && "[&_[data-chat-header]]:opacity-60",
       )}
       style={{
         left: percent(rect.left),
@@ -73,24 +74,6 @@ function SplitPane(
       onPointerDownCapture={(event) => activate(event.target)}
       onFocusCapture={(event) => activate(event.target)}
     >
-      <div
-        className={cn(
-          "flex h-7 shrink-0 items-center gap-1 border-b border-border pr-1 pl-3 text-xs",
-          active ? "bg-accent/50 text-foreground" : "text-muted-foreground",
-          rect.left === 0 && rect.top === 0 && COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
-        )}
-      >
-        <span className="min-w-0 flex-1 truncate">{title || gt("Thread")}</span>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={gt("Close pane")}
-          data-split-pane-close=""
-          onClick={() => props.onClose(rect.threadKey)}
-        >
-          <XIcon />
-        </Button>
-      </div>
       <div className="relative flex min-h-0 flex-1 flex-col">
         {props.renderPane({
           threadKey: rect.threadKey,
@@ -99,6 +82,10 @@ function SplitPane(
           availability,
           // Thirds do not add up to exactly 1 in floating point.
           reserveTitleBarControlInset: rect.top === 0 && rect.left + rect.width > 0.999,
+          splitPane: {
+            onClose: () => props.onClose(rect.threadKey),
+            atWindowStart: rect.left === 0 && rect.top === 0,
+          },
         })}
       </div>
     </section>
