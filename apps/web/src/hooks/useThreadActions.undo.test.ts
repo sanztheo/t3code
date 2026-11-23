@@ -298,7 +298,9 @@ describe("delete in a split group", () => {
       threadKey: scopedThreadKey(scopeThreadRef(target.environmentId, ThreadId.make(threadId))),
     });
     useSplitViewStore.setState({
-      groups: [{ type: "split", orientation: "horizontal", children: [pane("thread"), pane("partner")] }],
+      groups: [
+        { type: "split", orientation: "horizontal", children: [pane("thread"), pane("partner")] },
+      ],
     });
     router.state.matches[0]!.params = {
       environmentId: target.environmentId,
