@@ -72,6 +72,11 @@ function findDropTarget(point: { x: number; y: number }): HTMLElement | null {
   );
 }
 
+/** Whether `point` is over a composer, which takes a dragged thread as context. */
+export function isOverThreadContextDropTarget(point: { x: number; y: number }): boolean {
+  return findDropTarget(point) !== null;
+}
+
 export function moveThreadContextDrag(
   point: { x: number; y: number },
   label: { title: string; count: number },

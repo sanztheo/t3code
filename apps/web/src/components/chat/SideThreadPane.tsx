@@ -24,15 +24,10 @@ import {
   type ThreadSurface,
   useRightPanelStore,
 } from "../../rightPanelStore";
-import { useQuietThreadProjection, useQuietThreadShell } from "../../state/entities";
+import { useQuietThreadProjection } from "../../state/entities";
 import { useEnvironmentScope } from "../../state/session";
-import { useEnvironmentShellStatus } from "../../state/shell";
-import { threadEnvironment, useEnvironmentThread } from "../../state/threads";
-import {
-  isThreadRouteSnapshotAuthoritative,
-  resolveThreadRouteRenderState,
-} from "../../threadRoutes";
-import { useOpenThreadFamily } from "../ThreadRouteView";
+import { threadEnvironment } from "../../state/threads";
+import { useShownThreadRenderState } from "../ThreadRouteView";
 import { useAtomCommand } from "../../state/use-atom-command";
 import ChatView from "../ChatView";
 import { Button } from "../ui/button";
@@ -69,23 +64,7 @@ export default function SideThreadPane(props: {
       });
     };
   }, [parentRef, threadId]);
-  const shell = useQuietThreadShell(threadRef);
-  const bootstrapComplete = isThreadRouteSnapshotAuthoritative(
-    useEnvironmentShellStatus(parentRef.environmentId),
-  );
-  // The shell can leave an idle subagent out, so its own detail says whether it still exists.
-  const unlistedDetail = useEnvironmentThread(
-    shell === null ? parentRef.environmentId : null,
-    shell === null ? threadId : null,
-  );
-  useOpenThreadFamily(threadRef, bootstrapComplete && shell === null);
-  const renderState = resolveThreadRouteRenderState({
-    bootstrapComplete,
-    serverThreadExists: shell !== null,
-    serverThreadDeleted: shell?.deletedAt != null,
-    unlistedThreadDetail: unlistedDetail,
-    draftThreadExists: false,
-  });
+  const { shell, renderState } = useShownThreadRenderState(threadRef);
   const projection = useQuietThreadProjection(threadRef)?.projection;
   const thread = shell ?? projection?.thread ?? null;
   // A tab opens for side chats and subagents only, so an unloaded one is still one of them.
