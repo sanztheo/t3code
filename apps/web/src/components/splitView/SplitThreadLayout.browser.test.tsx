@@ -107,7 +107,9 @@ it("places four panes in a 2×2 grid with the route thread active", async () => 
   // under its panel controls.
   await expect.element(screen.getByText(`active ready ${key("A")} start`)).toBeInTheDocument();
   await expect.element(screen.getByText(`inactive ready ${key("B")} controls`)).toBeInTheDocument();
-  await expect.element(screen.getByText(`inactive ready ${key("C")}`, { exact: true })).toBeInTheDocument();
+  await expect
+    .element(screen.getByText(`inactive ready ${key("C")}`, { exact: true }))
+    .toBeInTheDocument();
   // The pane is the chat alone: no title strip of its own above the chat's header.
   const chatA = screen.getByText(`active ready ${key("A")} start`).element();
   expect(chatA.getBoundingClientRect().top).toBe(0);
