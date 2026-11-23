@@ -28,24 +28,28 @@ function ThreadEntry(props: { threadId: string; focusComposer: () => void; press
   );
 }
 
-const nextFrames = () =>
-  new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+/** Runs the frame the hook waits for at once, so the assertions follow the render directly. */
+const immediateFrames = () =>
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(performance.now());
+    return 0;
+  });
 
 it("leaves the focus where a press inside a split pane put it when that pane becomes active", async () => {
+  using _frames = immediateFrames();
   const focusComposer = vi.fn();
   await using _screen = await render(
     <ThreadEntry threadId="pressed" focusComposer={focusComposer} pressed />,
   );
-  await nextFrames();
   expect(document.activeElement?.getAttribute("aria-label")).toBe("Panel field");
   expect(focusComposer).not.toHaveBeenCalled();
 });
 
 it("still focuses the composer of a split pane entered from elsewhere", async () => {
+  using _frames = immediateFrames();
   const focusComposer = vi.fn();
   await using _screen = await render(
     <ThreadEntry threadId="entered" focusComposer={focusComposer} pressed={false} />,
   );
-  await nextFrames();
   expect(focusComposer).toHaveBeenCalledOnce();
 });
