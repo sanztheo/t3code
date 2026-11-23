@@ -72,31 +72,35 @@ function isKeyClaimedInPath(event: KeyboardEvent): boolean {
     );
 }
 
-export function shouldRedirectInputToComposer(event: Event): boolean {
+/** `chatRoot` is the receiving chat's root: another chat maximizing its panel leaves it alone. */
+export function shouldRedirectInputToComposer(event: Event, chatRoot: ParentNode): boolean {
   if (event.defaultPrevented) return false;
   // Never persist or send secret-request typing through the composer.
   if (eventPathContainsSelector(event, SECRET_REQUEST_SELECTOR)) return false;
   if (eventPathContainsSelector(event, TYPE_TO_FOCUS_EDITABLE_SELECTOR)) return false;
   if (eventPathContainsSelector(event, TYPE_TO_FOCUS_INTERACTIVE_SELECTOR)) return false;
   if (document.querySelector(TYPE_TO_FOCUS_FLOATING_LAYER_SELECTOR)) return false;
-  if (document.querySelector('[data-chat-column-maximized-away="true"]')) return false;
+  if (chatRoot.querySelector('[data-chat-column-maximized-away="true"]')) return false;
   return true;
 }
 
-export function shouldTypeToFocusComposer(event: KeyboardEvent): boolean {
+export function shouldTypeToFocusComposer(event: KeyboardEvent, chatRoot: ParentNode): boolean {
   if (event.isComposing) return false;
   if (event.metaKey || event.ctrlKey || event.altKey) return false;
   if (event.key.length !== 1) return false;
-  if (!shouldRedirectInputToComposer(event)) return false;
+  if (!shouldRedirectInputToComposer(event, chatRoot)) return false;
   if (isSurfaceLauncherKey(event)) return false;
   if (isKeyClaimedInPath(event)) return false;
 
   return true;
 }
 
-export function pasteTextToFocusComposer(event: ClipboardEvent): string | null {
+export function pasteTextToFocusComposer(
+  event: ClipboardEvent,
+  chatRoot: ParentNode,
+): string | null {
   if (!event.clipboardData || event.clipboardData.files.length > 0) return null;
-  if (!shouldRedirectInputToComposer(event)) return null;
+  if (!shouldRedirectInputToComposer(event, chatRoot)) return null;
   const text = event.clipboardData.getData("text/plain");
   return text.length > 0 ? text : null;
 }

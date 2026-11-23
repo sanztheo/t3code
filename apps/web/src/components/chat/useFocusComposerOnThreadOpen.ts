@@ -2,6 +2,7 @@ import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useEffect } from "react";
 
 import { restoreFocusOnThreadEnter } from "../../lib/terminalFocus";
+import { SPLIT_GROUP_PANE_ATTRIBUTE } from "../splitView/splitDrag";
 
 /** Restores thread focus, landing the caret a frame after composer entry. */
 export function useFocusComposerOnThreadOpen(
@@ -21,6 +22,9 @@ export function useFocusComposerOnThreadOpen(
         frame = window.requestAnimationFrame(() => {
           // Double-clicking a sidebar row opens its thread and its rename field in one gesture.
           if (document.activeElement?.matches("[data-sidebar-row] input")) return;
+          // Pressing inside a split pane makes it active, and the press already put the focus
+          // (a field, the caret in the draft) where the user wants it.
+          if (root.closest(`[${SPLIT_GROUP_PANE_ATTRIBUTE}]`)?.contains(document.activeElement)) return;
           focusComposer();
         });
       },

@@ -61,6 +61,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
+  use,
   useEffect,
   useEffectEvent,
   useRef,
@@ -111,6 +112,7 @@ import { FaviconImage } from "./preview/PreviewFaviconIcon";
 import { previewBridge } from "./preview/previewBridge";
 import { dispatchPreviewAction } from "./preview/previewActionBus";
 import { preventThumbButtonFocus, takeThumbButtonNavigation } from "./preview/thumbButtons";
+import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { PierreEntryIcon } from "./chat/PierreEntryIcon";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
@@ -359,6 +361,8 @@ function RightPanelEmptyState(props: {
   const gt = useGT();
   const messages = useMessages();
   const [highlight, setHighlight] = useState(-1);
+  // A chat in the background (an inactive split pane) leaves the keyboard to the active one.
+  const backgroundThread = use(BackgroundThreadContext);
 
   const actions = [
     {
@@ -452,10 +456,11 @@ function RightPanelEmptyState(props: {
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes a capture-phase window keydown listener for surface shortcuts while the menu is mounted
   useEffect(() => {
+    if (backgroundThread) return;
     const handler = (event: KeyboardEvent) => handleShortcut(event);
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, []);
+  }, [backgroundThread]);
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -501,7 +506,11 @@ function RightPanelEmptyState(props: {
       tabIndex={0}
       onKeyDown={handleKeyDown}
       aria-label={gt("Open a surface")}
-      data-surface-launcher-keys={availableActions.map((action) => action.shortcut).join("")}
+      data-surface-launcher-keys={
+        backgroundThread
+          ? undefined
+          : availableActions.map((action) => action.shortcut).join("")
+      }
       className={cn(
         "scrollbar-gutter-both flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 outline-none",
         "pb-(--workspace-topbar-height)",
@@ -1128,6 +1137,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   const focusedSurface = props.surfaces.find((surface) => surface.id === props.activeSurfaceId);
   const ownsDesktopTitleBar = isElectron && props.mode === "inline";
   const browserProfiles = useBrowserDefaults().profiles;
+  // A chat in the background (an inactive split pane) leaves the keyboard to the active one.
+  const backgroundThread = use(BackgroundThreadContext);
   const { resolvedTheme } = useTheme();
   const tabListRef = useRef<HTMLDivElement>(null);
   const addSurfaceTriggerRef = useRef<HTMLButtonElement>(null);
@@ -1267,14 +1278,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes document keydown and the desktop menu action (forwarded from a focused browser page) for the new surface shortcut while the panel is open and can add a surface
   useEffect(() => {
-    if (props.open === false || !canAddSurface) return;
+    if (props.open === false || !canAddSurface || backgroundThread) return;
     document.addEventListener("keydown", onNewSurfaceKeyDown, true);
     const unsubscribe = window.desktopBridge?.onMenuAction(onMenuAction);
     return () => {
       document.removeEventListener("keydown", onNewSurfaceKeyDown, true);
       unsubscribe?.();
     };
-  }, [props.open, canAddSurface]);
+  }, [props.open, canAddSurface, backgroundThread]);
 
   const handleAddSurfaceMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const action = surfaceShortcutActionForKey(addSurfaceActions, event.nativeEvent);

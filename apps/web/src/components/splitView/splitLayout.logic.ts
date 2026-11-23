@@ -13,6 +13,8 @@
  * trees are immutable.
  */
 
+import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
+
 export type SplitDropRegion = "left" | "right" | "top" | "bottom" | "center";
 type SplitEdge = Exclude<SplitDropRegion, "center">;
 
@@ -65,23 +67,6 @@ export function resolveDropRegion(
   return canSplit ? getDropRegion(rect, point.x, point.y) : "center";
 }
 
-/** The part of the pane the dropped thread will take: half of it at an edge, all of it at the centre. */
-export function splitDropPreviewRect(rect: SplitRect, region: SplitDropRegion): SplitRect {
-  const { left, top, width, height } = rect;
-  switch (region) {
-    case "left":
-      return { left, top, width: width / 2, height };
-    case "right":
-      return { left: left + width / 2, top, width: width / 2, height };
-    case "top":
-      return { left, top, width, height: height / 2 };
-    case "bottom":
-      return { left, top: top + height / 2, width, height: height / 2 };
-    case "center":
-      return rect;
-  }
-}
-
 export function splitThreadKeys(node: SplitNode): ReadonlyArray<string> {
   return node.type === "pane" ? [node.threadKey] : node.children.flatMap(splitThreadKeys);
 }
@@ -101,6 +86,17 @@ export function canSplitPane(
   const keys = splitThreadKeys(group);
   const panesAfterMove = keys.includes(draggedThreadKey) ? keys.length - 1 : keys.length;
   return panesAfterMove < SPLIT_MAX_PANES;
+}
+
+/** What a drop does: a pane that cannot split any more takes the dropped thread in its place. */
+export interface SplitDrop {
+  readonly targetThreadKey: string;
+  readonly draggedThreadKey: string;
+  readonly region: SplitDropRegion;
+}
+
+function effectiveDropRegion(groups: SplitGroups, drop: SplitDrop): SplitDropRegion {
+  return canSplitPane(groups, drop.targetThreadKey, drop.draggedThreadKey) ? drop.region : "center";
 }
 
 /** Every pane's place as fractions of the group's box, in reading order. */
@@ -209,17 +205,10 @@ function paneCount(node: SplitNode): number {
  * target; the centre puts it in the target's place, so the target thread leaves the group. The
  * dragged thread first leaves any group it was in. A group that ends with one pane dissolves.
  */
-export function dropThreadOnPane(
-  groups: SplitGroups,
-  drop: {
-    readonly targetThreadKey: string;
-    readonly draggedThreadKey: string;
-    readonly region: SplitDropRegion;
-  },
-): SplitGroups {
+export function dropThreadOnPane(groups: SplitGroups, drop: SplitDrop): SplitGroups {
   const { targetThreadKey, draggedThreadKey } = drop;
   if (targetThreadKey === draggedThreadKey) return groups;
-  const region = canSplitPane(groups, targetThreadKey, draggedThreadKey) ? drop.region : "center";
+  const region = effectiveDropRegion(groups, drop);
   const targetGroup = findSplitGroup(groups, targetThreadKey);
   if (region === "center" && targetGroup === null) return groups;
 
@@ -247,25 +236,91 @@ export function dropThreadOnPane(
 }
 
 /**
- * Closes the pane showing `threadKey`. `nextThreadKey` is the pane beside it in reading order,
- * which takes over when the closed pane was the active one.
+ * Where the dropped thread will sit, in the pixels of `targetRect` (the target pane's box): its
+ * place in the group the drop produces, laid over the box the target's group fills now.
  */
-export function closeSplitPane(
+export function splitDropPreviewRect(
   groups: SplitGroups,
-  threadKey: string,
-): { readonly groups: SplitGroups; readonly nextThreadKey: string | null } {
+  drop: SplitDrop,
+  targetRect: SplitRect,
+): SplitRect {
+  const whole: SplitRect = { left: 0, top: 0, width: 1, height: 1 };
+  const placeOf = (group: SplitNode | null, threadKey: string) =>
+    group === null ? null : splitPaneRects(group).find((rect) => rect.threadKey === threadKey);
+  const target = placeOf(findSplitGroup(groups, drop.targetThreadKey), drop.targetThreadKey) ?? whole;
+  const width = targetRect.width / target.width;
+  const height = targetRect.height / target.height;
+  const left = targetRect.left - target.left * width;
+  const top = targetRect.top - target.top * height;
+  const dropped = placeOf(
+    findSplitGroup(dropThreadOnPane(groups, drop), drop.draggedThreadKey),
+    drop.draggedThreadKey,
+  );
+  // A centre drop over a lone thread splits nothing: the dragged thread opens in its place.
+  if (!dropped) return targetRect;
+  return {
+    left: left + dropped.left * width,
+    top: top + dropped.top * height,
+    width: dropped.width * width,
+    height: dropped.height * height,
+  };
+}
+
+/** The group pane a drop puts the dragged thread in place of, if any. */
+export function splitDropReplacement(
+  groups: SplitGroups,
+  drop: SplitDrop,
+): { readonly from: string; readonly to: string } | null {
+  const replaces =
+    drop.targetThreadKey !== drop.draggedThreadKey &&
+    effectiveDropRegion(groups, drop) === "center" &&
+    findSplitGroup(groups, drop.targetThreadKey) !== null;
+  return replaces ? { from: drop.targetThreadKey, to: drop.draggedThreadKey } : null;
+}
+
+/** Closes the pane showing `threadKey`; a group left with one pane dissolves. */
+export function closeSplitPane(groups: SplitGroups, threadKey: string): SplitGroups {
   const group = findSplitGroup(groups, threadKey);
-  if (group === null) return { groups, nextThreadKey: null };
+  if (group === null) return groups;
+  const rest = withoutThread(group, threadKey);
+  return groups.flatMap((candidate) =>
+    candidate !== group ? [candidate] : rest !== null && paneCount(rest) > 1 ? [rest] : [],
+  );
+}
+
+/**
+ * The pane that takes over from `threadKey`: the nearest one before it in reading order, or
+ * after it for the first pane, among those `canShow` accepts.
+ */
+export function nextSplitPane(
+  group: SplitNode,
+  threadKey: string,
+  canShow: (threadKey: string) => boolean = () => true,
+): string | null {
   const keys = splitThreadKeys(group);
   const index = keys.indexOf(threadKey);
-  const nextThreadKey = keys[index - 1] ?? keys[index + 1] ?? null;
-  const rest = withoutThread(group, threadKey);
-  return {
-    groups: groups.flatMap((candidate) =>
-      candidate !== group ? [candidate] : rest !== null && paneCount(rest) > 1 ? [rest] : [],
-    ),
-    nextThreadKey,
-  };
+  const candidates = [...keys.slice(0, index).toReversed(), ...keys.slice(index + 1)];
+  return candidates.find(canShow) ?? null;
+}
+
+export type SplitPaneAvailability = "ready" | "loading" | "unavailable";
+
+/**
+ * What a group member shows: only what its own route would. A thread that is gone or that the
+ * tag filter hides is unavailable, and so is one off the shell list while any filter hides,
+ * since the route then opens it only as a visible parent's child, which a pane never holds.
+ */
+export function splitPaneAvailability(input: {
+  readonly renderState: "ready" | "loading" | "missing";
+  /** Whether the shell lists the thread. */
+  readonly listed: boolean;
+  readonly hiddenByTag: boolean;
+  readonly hidingAnywhere: boolean;
+}): SplitPaneAvailability {
+  if (input.renderState === "missing" || input.hiddenByTag) return "unavailable";
+  if (input.listed) return "ready";
+  if (input.renderState === "loading") return "loading";
+  return input.hidingAnywhere ? "unavailable" : "ready";
 }
 
 function decodeSplitNode(value: unknown): SplitNode | null {
@@ -295,7 +350,7 @@ export function decodeSplitGroups(saved: unknown): SplitGroups {
     if (decoded === null) return [];
     const kept = new Set<string>();
     const group = mapPanes(decoded, (key) => {
-      if (seen.has(key) || kept.has(key)) return null;
+      if (parseScopedThreadKey(key) === null || seen.has(key) || kept.has(key)) return null;
       kept.add(key);
       return { type: "pane", threadKey: key };
     });
