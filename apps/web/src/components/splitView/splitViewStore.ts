@@ -1,12 +1,22 @@
+import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
+import { threadKey } from "@t3tools/client-runtime/state/entities";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { resolveStorage } from "../../lib/storage";
 import {
+  readAnyEnvironmentHiding,
+  readHiddenThreadKeys,
+  readThreadShell,
+} from "../../state/entities";
+import {
   closeSplitPane,
   decodeSplitGroups,
   dropThreadOnPane,
+  findSplitGroup,
+  nextSplitPane,
   splitDropReplacement,
+  splitPaneAvailability,
   type SplitDrop,
   type SplitGroups,
 } from "./splitLayout.logic";
@@ -54,3 +64,29 @@ export const useSplitViewStore = create<SplitViewState>()(
     },
   ),
 );
+
+/**
+ * Whether a group member's pane shows its chat right now, by the rule the pane itself follows.
+ * A member off the shell list is not looked up here, so it counts as still loading.
+ */
+function splitPaneShowsNow(paneKey: string): boolean {
+  const ref = parseScopedThreadKey(paneKey);
+  if (ref === null) return false;
+  const shell = readThreadShell(ref);
+  const availability = splitPaneAvailability({
+    renderState: shell === null ? "loading" : shell.deletedAt != null ? "missing" : "ready",
+    listed: shell !== null,
+    hiddenByTag: readHiddenThreadKeys().has(threadKey(ref)),
+    hidingAnywhere: readAnyEnvironmentHiding(),
+  });
+  return availability === "ready";
+}
+
+/**
+ * The pane that becomes active when the active thread `leavingThreadKey` closes or is deleted:
+ * the nearest one in its group that shows its chat, or null outside a group or when none does.
+ */
+export function splitTakeoverThreadKey(leavingThreadKey: string): string | null {
+  const group = findSplitGroup(useSplitViewStore.getState().groups, leavingThreadKey);
+  return group === null ? null : nextSplitPane(group, leavingThreadKey, splitPaneShowsNow);
+}

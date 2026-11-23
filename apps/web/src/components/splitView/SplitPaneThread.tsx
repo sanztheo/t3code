@@ -1,4 +1,3 @@
-import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
 import { T } from "gt-react";
 import { use } from "react";
 
@@ -9,7 +8,7 @@ import type { SplitPaneSlot } from "./SplitThreadLayout";
 
 /** One thread of a split group, a full chat like the main screen's. */
 export function SplitPaneThread({
-  threadKey,
+  threadRef,
   active,
   availability,
   reserveTitleBarControlInset,
@@ -17,7 +16,6 @@ export function SplitPaneThread({
   const routeInBackground = use(BackgroundThreadContext);
   // The command palette drives the active pane's composer; the others keep their own.
   const sharedComposerHandle = useComposerHandleContext();
-  const threadRef = parseScopedThreadKey(threadKey);
   if (availability === "unavailable") {
     return (
       <p className="p-3 text-xs text-muted-foreground">
@@ -25,7 +23,7 @@ export function SplitPaneThread({
       </p>
     );
   }
-  if (availability === "loading" || threadRef === null) return null;
+  if (availability === "loading") return null;
   // An inactive pane's window-wide shortcuts and listeners stand down, as under Settings.
   return (
     <BackgroundThreadContext value={routeInBackground || !active}>

@@ -50,6 +50,7 @@ import {
   readThreadShells,
 } from "../state/entities";
 import { useUiStateStore } from "../uiStateStore";
+import { splitTakeoverThreadKey } from "../components/splitView/splitViewStore";
 import { useDiffPanelStore } from "../diffPanelStore";
 import { usePreviewMiniPlayerStore } from "../previewMiniPlayerStore";
 import { clearThreadPreviewState } from "../previewStateStore";
@@ -629,6 +630,10 @@ export function useThreadActions() {
       now: new Date().toISOString(),
       delegatedUnderParent: readDelegatedUnderParent(),
     });
+    // In a split group the pane beside it takes over, as when its pane closes.
+    const splitTakeoverKey = splitTakeoverThreadKey(scopedThreadKey(threadRef));
+    const splitTakeoverRef =
+      splitTakeoverKey === null ? null : parseScopedThreadKey(splitTakeoverKey);
     let navigatedDuringDelete = false;
     // The missing-thread redirect and the index draft replace this entry; any other history
     // action while the delete is pending is the user's own choice, which must win.
@@ -666,13 +671,14 @@ export function useThreadActions() {
       const fallbackThread = fallbackThreadId
         ? readThreadShell(scopeThreadRef(threadRef.environmentId, fallbackThreadId))
         : null;
+      const fallbackRef =
+        splitTakeoverRef ??
+        (fallbackThread ? scopeThreadRef(fallbackThread.environmentId, fallbackThread.id) : null);
       await navigateAfterThreadDeletion(() =>
-        fallbackThread
+        fallbackRef
           ? router.navigate({
               to: "/$environmentId/$threadId",
-              params: buildThreadRouteParams(
-                scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
-              ),
+              params: buildThreadRouteParams(fallbackRef),
               replace: true,
             })
           : router.navigate({ to: "/", replace: true }),

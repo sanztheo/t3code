@@ -6,6 +6,8 @@ import { readThreadShell } from "../../state/entities";
 import { isOverThreadContextDropTarget } from "../chat/threadContextDrag";
 import {
   canSplitPane,
+  dropThreadOnPane,
+  findSplitGroup,
   resolveDropRegion,
   splitDropPreviewRect,
   type SplitDrop,
@@ -106,8 +108,14 @@ export function dropSplitDrag(
   const found = dragged === null ? null : findSplitDrop(point, dragged);
   if (thread === undefined || found === null) return false;
   const store = useSplitViewStore.getState();
-  store.dropThread(found.drop);
-  // A replaced route pane shows its replacement until the route lands on it.
-  void show(thread).finally(store.endReplacement);
+  if (findSplitGroup(dropThreadOnPane(store.groups, found.drop), found.drop.draggedThreadKey)) {
+    store.dropThread(found.drop);
+    // A replaced route pane shows its replacement until the route lands on it.
+    void show(thread).finally(store.endReplacement);
+  } else {
+    // The drop leaves the dragged thread alone (the group's other pane dropped on its centre):
+    // the route moves first, as on close, so the replaced thread never shows alone.
+    void show(thread).then(() => store.dropThread(found.drop));
+  }
   return true;
 }

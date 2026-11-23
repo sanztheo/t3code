@@ -18,7 +18,7 @@ import {
   resolveThreadDetailsCardDensity,
 } from "./threadDetailsCardLayout";
 import { observeResize } from "../../lib/observeResize";
-import { requestWorkspaceFocus } from "../../lib/workspaceFocus";
+import { requestWorkspaceFocus, threadDetailsFocusKey } from "../../lib/workspaceFocus";
 
 export function ThreadDetailsCard({
   threadRef,
@@ -151,7 +151,7 @@ export function ThreadDetailsCard({
       {placement && inlineOpen ? (
         <aside
           {...detailsArea}
-          data-workspace-focus-key={`details:${threadRef.environmentId}:${threadRef.threadId}`}
+          data-workspace-focus-key={threadDetailsFocusKey(threadRef)}
           // Skip the return transition to avoid overlapping the rising preview.
           className={cn(
             "absolute z-20",
@@ -175,9 +175,9 @@ export function ThreadDetailsCard({
       <PopoverPopup
         {...(mode === "popover" ? detailsArea : {})}
         role="dialog"
-        data-workspace-focus-key={`details:${threadRef.environmentId}:${threadRef.threadId}`}
+        data-workspace-focus-key={threadDetailsFocusKey(threadRef)}
         initialFocus={() => {
-          requestWorkspaceFocus({ area: "details" });
+          requestWorkspaceFocus({ area: "details", focusKey: threadDetailsFocusKey(threadRef) });
           return false;
         }}
         anchor={anchor}

@@ -396,6 +396,16 @@ export function readThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
   return appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
 }
 
+/** Snapshot of `useHiddenThreadKeys`, for handlers. */
+export function readHiddenThreadKeys(): ReadonlySet<string> {
+  return appAtomRegistry.get(environmentThreadShells.hiddenThreadKeysAtom);
+}
+
+/** Snapshot of `useAnyEnvironmentHiding`, for handlers. */
+export function readAnyEnvironmentHiding(): boolean {
+  return appAtomRegistry.get(environmentThreadShells.anyEnvironmentHidingAtom);
+}
+
 export function readDelegatedUnderParent(): ReadonlySet<string> {
   return appAtomRegistry.get(environmentThreadShells.delegatedUnderParentAtom);
 }

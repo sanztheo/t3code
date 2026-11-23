@@ -19,6 +19,7 @@ import { useSplitPaneState } from "./useSplitPaneState";
 
 export interface SplitPaneSlot {
   readonly threadKey: string;
+  readonly threadRef: ScopedThreadRef;
   readonly active: boolean;
   /** A pane whose thread is gone or hidden says so instead of showing its chat. */
   readonly availability: SplitPaneAvailability;
@@ -93,6 +94,7 @@ function SplitPane(
       <div className="relative flex min-h-0 flex-1 flex-col">
         {props.renderPane({
           threadKey: rect.threadKey,
+          threadRef: props.threadRef,
           active,
           availability,
           // Thirds do not add up to exactly 1 in floating point.

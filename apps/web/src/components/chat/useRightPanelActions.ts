@@ -24,7 +24,11 @@ import {
   type RightPanelSurface,
   useRightPanelStore,
 } from "../../rightPanelStore";
-import { requestWorkspaceContentFocus, requestWorkspaceFocus } from "../../lib/workspaceFocus";
+import {
+  requestWorkspaceContentFocus,
+  requestWorkspaceFocus,
+  threadDetailsFocusKey,
+} from "../../lib/workspaceFocus";
 import { setActivePreviewTab } from "../../previewStateStore";
 import { isBrowserSettingsReadError } from "../../browser/openFileInPreview";
 import { addBrowserSurface } from "../preview/addBrowserSurface";
@@ -256,7 +260,11 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
         activeThreadRef,
         "inline",
       );
-      if (!open) requestWorkspaceFocus({ area: "details" });
+      if (!open)
+        requestWorkspaceFocus({
+          area: "details",
+          focusKey: threadDetailsFocusKey(activeThreadRef),
+        });
       else if (document.activeElement?.closest('[data-workspace-area="details"]'))
         requestWorkspaceContentFocus();
     }
