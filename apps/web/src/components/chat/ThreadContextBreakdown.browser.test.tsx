@@ -112,6 +112,22 @@ it("asks nothing while folded and once per revision while open", async () => {
   expect(distinctRevisions()).toBe(2);
 });
 
+it("keeps unfolded categories while a new report loads", async () => {
+  state.result = AsyncResult.success(fixture);
+  const target = { environmentId, threadId };
+  await using screen = await render(
+    <ThreadDetailsContext usage={usage("2026-11-23T00:00:00.000Z")} breakdownTarget={target} />,
+  );
+  await screen.getByRole("button", { name: "Context breakdown" }).click();
+  await screen.getByRole("button", { name: "MCP tools", exact: true }).click();
+  await expect.element(screen.getByText("linear")).toBeInTheDocument();
+  state.result = AsyncResult.initial(true);
+  await screen.rerender(
+    <ThreadDetailsContext usage={usage("2026-11-23T00:01:00.000Z")} breakdownTarget={target} />,
+  );
+  await expect.element(screen.getByText("linear")).toBeInTheDocument();
+});
+
 it("tells to send a message when the session is gone", async () => {
   state.result = AsyncResult.failure(
     Cause.fail(new ThreadContextBreakdownError({ threadId, reason: "session-stopped" })),
