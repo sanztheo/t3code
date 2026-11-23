@@ -291,12 +291,12 @@ describe("delete navigation", () => {
 
 describe("delete in a split group", () => {
   afterEach(() => useSplitViewStore.setState({ groups: [] }));
+  const pane = (threadId: string) => ({
+    type: "pane" as const,
+    threadKey: scopedThreadKey(scopeThreadRef(target.environmentId, ThreadId.make(threadId))),
+  });
 
   it("hands the route to the pane beside the deleted active thread", async () => {
-    const pane = (threadId: string) => ({
-      type: "pane" as const,
-      threadKey: scopedThreadKey(scopeThreadRef(target.environmentId, ThreadId.make(threadId))),
-    });
     useSplitViewStore.setState({
       groups: [
         { type: "split", orientation: "horizontal", children: [pane("thread"), pane("partner")] },
@@ -310,6 +310,37 @@ describe("delete in a split group", () => {
     expect(router.navigate).toHaveBeenCalledExactlyOnceWith({
       to: "/$environmentId/$threadId",
       params: { environmentId: target.environmentId, threadId: ThreadId.make("partner") },
+      replace: true,
+    });
+  });
+
+  it("picks the takeover from the group as it is once the server answers", async () => {
+    useSplitViewStore.setState({
+      groups: [
+        {
+          type: "split",
+          orientation: "horizontal",
+          children: [pane("thread"), pane("partner"), pane("third")],
+        },
+      ],
+    });
+    router.state.matches[0]!.params = {
+      environmentId: target.environmentId,
+      threadId: target.threadId,
+    };
+    // The user closes the partner's pane while the delete is in flight.
+    commands.delete.mockImplementation(async () => {
+      useSplitViewStore.setState({
+        groups: [
+          { type: "split", orientation: "horizontal", children: [pane("thread"), pane("third")] },
+        ],
+      });
+      return { _tag: "Success", value: undefined };
+    });
+    expect((await useThreadActions().deleteThread(target))._tag).toBe("Success");
+    expect(router.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/$environmentId/$threadId",
+      params: { environmentId: target.environmentId, threadId: ThreadId.make("third") },
       replace: true,
     });
   });
