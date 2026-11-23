@@ -48,6 +48,9 @@ env:
     apps/web/src/components/Sidebar.browser.test.tsx
     apps/web/src/components/Sidebar.logic.test.ts
     packages/client-runtime/src/state/threadShell.test.ts
+    apps/server/src/provider/ClaudeContextBreakdown.test.ts
+    apps/server/src/threadContext/ThreadContextRequests.test.ts
+    apps/web/src/components/chat/ThreadContextBreakdown.browser.test.tsx
 
 jobs:
   check:
