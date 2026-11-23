@@ -9,6 +9,7 @@ import {
   endThreadContextDrag,
   moveThreadContextDrag as moveThreadContextDragGhost,
 } from "./chat/threadContextDrag";
+import { dropSplitDrag, endSplitDrag, moveSplitDrag } from "./splitView/splitDrag";
 import { discardComposerDraft } from "../lib/discardComposerDraft";
 import { requestCustomSnooze } from "./CustomSnoozeDialog";
 import { useAtomValue } from "@effect/atom-react";
@@ -1817,6 +1818,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     contextDragKeyRef.current = null;
     dragScrollRef.current = null;
     endThreadContextDrag();
+    endSplitDrag();
     if (started) {
       listMotionRef.current?.release();
       setDragState(null);
@@ -1858,6 +1860,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     );
     if (!contextDrag) {
       endThreadContextDrag();
+      endSplitDrag();
       return false;
     }
     restoreDragScroll();
@@ -1865,12 +1868,18 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     const threadRef = parseScopedThreadKey(contextDragKeyRef.current ?? "");
     const title = (threadRef && readThreadShell(threadRef)?.title.trim()) || gt("Thread");
     moveThreadContextDragGhost(point, { title, count: threads.length });
+    moveSplitDrag(point, threads);
     return true;
   };
   const dropThreadContextDrag = (point: { x: number; y: number }) => {
     if (!pointerOutsideThreadList(point)) return false;
     restoreDragScroll();
-    dropThreadContext(point, contextDragThreads());
+    const threads = contextDragThreads();
+    // Over the composer the thread becomes context; over the rest of a chat it splits the pane.
+    if (!dropThreadContext(point, threads)) {
+      const splitThread = dropSplitDrag(point, threads);
+      if (splitThread !== null) void navigateToThread(splitThread);
+    }
     return true;
   };
   // useSensor memoizes options identity; fresh options rebuild DndContext and every sortable row.

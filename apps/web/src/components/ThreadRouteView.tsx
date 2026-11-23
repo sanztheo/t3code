@@ -13,6 +13,11 @@ import { BackgroundThreadContext, HiddenThreadContext } from "./chat/backgroundT
 import { Button } from "./ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "./ui/empty";
 import { SidebarInset } from "./ui/sidebar";
+import { focusSplitPane, splitPaneTargetProps } from "./splitView/splitDrag";
+import { findSplitGroup } from "./splitView/splitLayout.logic";
+import { SplitPaneThread } from "./splitView/SplitPaneThread";
+import { SplitDropPreview, SplitThreadLayout } from "./splitView/SplitThreadLayout";
+import { useSplitViewStore } from "./splitView/splitViewStore";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
 import {
@@ -47,6 +52,31 @@ export function useOpenThreadFamily(threadRef: ScopedThreadRef | null, missing: 
     if (ref === null) return;
     return threadFamilies.mount(appAtomRegistry, ref.environmentId, ref.threadId);
   }, [mountedKey]);
+}
+
+/**
+ * Whether a thread shown beside the route's own (a side tab, a split pane) exists, is still
+ * loading, or is gone. Until the shell lists it, its own detail decides.
+ */
+export function useShownThreadRenderState(threadRef: ScopedThreadRef) {
+  const shell = useQuietThreadShell(threadRef);
+  const bootstrapComplete = isThreadRouteSnapshotAuthoritative(
+    useEnvironmentShellStatus(threadRef.environmentId),
+  );
+  // The shell can leave an idle subagent out, so its own detail says whether it still exists.
+  const unlistedDetail = useEnvironmentThread(
+    shell === null ? threadRef.environmentId : null,
+    shell === null ? threadRef.threadId : null,
+  );
+  useOpenThreadFamily(threadRef, bootstrapComplete && shell === null);
+  const renderState = resolveThreadRouteRenderState({
+    bootstrapComplete,
+    serverThreadExists: shell !== null,
+    serverThreadDeleted: shell?.deletedAt != null,
+    unlistedThreadDetail: unlistedDetail,
+    draftThreadExists: false,
+  });
+  return { shell, renderState };
 }
 
 /**
@@ -147,6 +177,26 @@ export function ThreadRouteView({
     environmentUnreachable,
   });
   const environmentHasAnyThreads = environmentThreadRefs.length > 0 || environmentHasDraftThreads;
+  const splitGroup = useSplitViewStore((store) =>
+    serverThreadRef === null
+      ? null
+      : findSplitGroup(store.groups, scopedThreadKey(serverThreadRef)),
+  );
+  const showSplitPane = (threadKey: string) => {
+    const threadRef = parseScopedThreadKey(threadKey);
+    if (threadRef === null) return Promise.resolve();
+    return navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(threadRef) });
+  };
+  const closeSplitPane = (threadKey: string) => {
+    const nextThreadKey = useSplitViewStore.getState().closePane(threadKey);
+    const routeThreadKey = serverThreadRef === null ? null : scopedThreadKey(serverThreadRef);
+    const closedActivePane = threadKey === routeThreadKey;
+    const focusedThreadKey = closedActivePane ? nextThreadKey : routeThreadKey;
+    if (focusedThreadKey === null) return;
+    // The closed pane's button held the focus; it goes to the pane that is active afterwards.
+    const shown = closedActivePane ? showSplitPane(focusedThreadKey) : Promise.resolve();
+    void shown.then(() => focusSplitPane(focusedThreadKey));
+  };
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears pending file drops and navigates the router home once a server thread is confirmed missing
   useEffect(() => {
@@ -224,25 +274,39 @@ export function ThreadRouteView({
     // Before the shell bootstraps, a listed visible thread can still look off-shell.
     if (bootstrapComplete && unlistedThread !== null) redirect = <Navigate to="/" replace />;
   } else if (renderState === "ready" || (renderState === "loading" && serverThreadShell !== null)) {
-    view = (
-      <ChatView
-        key={nextHandoffKey?.key}
-        environmentId={target.threadRef.environmentId}
-        threadId={target.threadRef.threadId}
-        routeKind="server"
-      />
-    );
+    view =
+      splitGroup === null ? (
+        <ChatView
+          key={nextHandoffKey?.key}
+          environmentId={target.threadRef.environmentId}
+          threadId={target.threadRef.threadId}
+          routeKind="server"
+        />
+      ) : (
+        <SplitThreadLayout
+          group={splitGroup}
+          activeThreadKey={scopedThreadKey(target.threadRef)}
+          onActivate={showSplitPane}
+          onClose={closeSplitPane}
+          renderPane={(slot) => <SplitPaneThread {...slot} />}
+        />
+      );
   }
 
   return (
     <SidebarInset
       className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh"
       inert={background}
+      // A lone thread is one pane a dragged thread can split; a group marks each of its panes.
+      {...(serverThreadRef !== null && splitGroup === null && view !== null
+        ? splitPaneTargetProps(scopedThreadKey(serverThreadRef))
+        : {})}
     >
       <BackgroundThreadContext value={background}>
         <HiddenThreadContext value={background}>{view}</HiddenThreadContext>
       </BackgroundThreadContext>
       {background ? null : redirect}
+      {background ? null : <SplitDropPreview />}
     </SidebarInset>
   );
 }
