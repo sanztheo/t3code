@@ -56,22 +56,15 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
-          filter: blob:none
-          sparse-checkout: |
-            /*
-            !/.repos/
-            !/apps/mobile/modules/t3-terminal/Vendor/**/*.a
-          sparse-checkout-cone-mode: false
 
-      # Upstream is a second promisor remote, so the rebase can fetch the
-      # blobs of upstream commits the fork does not have.
+      # Full clones (a sparse checkout implies a partial one): since the fork left GitHub's fork network (2026-11-22), origin no longer
+      # serves upstream's blobs, and a partial clone's lazy fetch mixes both remotes in one
+      # batch that each of them refuses.
       - name: Fetch upstream main
         id: upstream
         run: |
           git remote add upstream https://github.com/pingdotgg/t3code.git
-          git config remote.upstream.promisor true
-          git config remote.upstream.partialclonefilter blob:none
-          git fetch --no-tags --filter=blob:none upstream main
+          git fetch --no-tags upstream main
           echo "sha=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
 
       # The release body records what it was built from (see the release job).
