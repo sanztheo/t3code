@@ -115,8 +115,8 @@ jobs:
       - name: Typecheck
         if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
         run: | # TEMP arbre: diagnostic, remove before merge
-          git fetch -q --depth=1 origin 70ffd4c3ea
-          for ref in HEAD 70ffd4c3ea; do
+          git fetch -q --depth=1 origin 70ffd4c3ea6661920caf1083b3c190884b112270
+          for ref in HEAD 70ffd4c3ea6661920caf1083b3c190884b112270; do
             git checkout -q "$ref" -- apps packages evals
             for d in evals packages/contracts packages/provider-core packages/client-runtime apps/server apps/web; do
               echo "== $ref $d"
