@@ -56,6 +56,8 @@ interface ChatHeaderProps {
   parentThreadLink: { threadId: ThreadId; title: string } | null;
   onOpenThread: (threadId: ThreadId) => void;
   rightPanelOpen: boolean;
+  /** A split pane's close button sits after the panel toggles. */
+  reservePaneCloseControl?: boolean | undefined;
   onNewThreadInProject: () => void;
   onOpenProjectSettings?: (() => void) | undefined;
   onFindInThread?: ((threadRef: ScopedThreadRef) => void) | undefined;
@@ -81,6 +83,7 @@ export const ChatHeader = memo(function ChatHeader({
   parentThreadLink,
   onOpenThread,
   rightPanelOpen,
+  reservePaneCloseControl = false,
   onNewThreadInProject,
   onOpenProjectSettings,
   onFindInThread,
@@ -255,7 +258,7 @@ export const ChatHeader = memo(function ChatHeader({
       ref={breadcrumbContainerRef}
       className={cn(
         "flex min-w-0 flex-1 items-center gap-2 sm:gap-3",
-        rightPanelOpen ? "pr-10" : "pr-24",
+        rightPanelOpen ? "pr-10" : reservePaneCloseControl ? "pr-32" : "pr-24",
       )}
       onContextMenu={handleHeaderContextMenu}
     >

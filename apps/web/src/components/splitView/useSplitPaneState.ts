@@ -5,7 +5,7 @@ import { useAnyEnvironmentHiding, useHiddenThreadKeys } from "../../state/entiti
 import { useShownThreadRenderState } from "../ThreadRouteView";
 import { splitPaneAvailability } from "./splitLayout.logic";
 
-/** Whether a group member shows its chat, and its title, under the route's own visibility rules. */
+/** Whether a group member shows its chat, under the route's own visibility rules. */
 export function useSplitPaneState(threadRef: ScopedThreadRef) {
   const { shell, renderState } = useShownThreadRenderState(threadRef);
   const hiddenByTag = useHiddenThreadKeys().has(threadKey(threadRef));
@@ -16,5 +16,5 @@ export function useSplitPaneState(threadRef: ScopedThreadRef) {
     hiddenByTag,
     hidingAnywhere,
   });
-  return { availability, title: availability === "ready" ? (shell?.title ?? null) : null };
+  return { availability };
 }
