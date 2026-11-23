@@ -63,7 +63,8 @@ function SplitPane(
         rect.left > 0 && "border-l",
         rect.top > 0 && "border-t",
         // Each pane's own chat header is its title bar; an inactive one's title recedes.
-        !active && "[&_[data-chat-header]>:not([data-workspace-titlebar-controls])]:opacity-60",
+        !active &&
+          "[&_[data-chat-header]>:not([data-workspace-titlebar-controls],[data-split-pane-close])]:opacity-60",
       )}
       style={{
         left: percent(rect.left),

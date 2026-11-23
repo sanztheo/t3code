@@ -3662,6 +3662,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           }
                           wokeAt={threadWokeAt(thread, { now: snoozeNow })}
                           isActive={openRowKeys.includes(threadKey)}
+                          isCurrentPage={activeRowKey === threadKey}
                           revealRef={routeRowThreadKey === threadKey ? revealActiveRow : undefined}
                           isRouteThread={routeThreadKey === threadKey}
                           readOpensPullRequestsInRightPanel={readOpensPullRequestsInRightPanel}

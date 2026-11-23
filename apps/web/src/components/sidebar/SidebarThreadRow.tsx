@@ -617,6 +617,8 @@ type SidebarThreadRowProps = {
   snoozeWakeLabelText: string | null;
   wokeAt: string | null;
   isActive: boolean;
+  // A split group shows several open rows; only the route's one is the current page.
+  isCurrentPage?: boolean | undefined;
   // Set on the active row only; scrolls it into view when a reveal is owed.
   revealRef?: ((row: HTMLElement, threadKey: string) => (() => void) | undefined) | undefined;
   // Unlike isActive, never true for the ancestor standing in for an open
@@ -1135,7 +1137,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     title: thread.title,
     statusLabel: pendingSync ? gt("Pending") : (topStatus?.label ?? null),
     projectDisplayName: props.projectDisplayName,
-    isActive: props.isActive,
+    isActive: props.isCurrentPage ?? props.isActive,
   });
 
   const title = isRenaming ? (

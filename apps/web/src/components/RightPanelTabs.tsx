@@ -1615,7 +1615,7 @@ export function RightPanelTabs({ ref, ...props }: RightPanelTabsProps) {
         className={cn(
           "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center gap-1 pl-2",
           props.mode === "inline" && !props.layoutControls
-            ? "pr-28 [[data-split-group-pane]_&]:relative [[data-split-group-pane]_&]:pr-36"
+            ? "pr-28 [[data-split-group-pane]_&]:relative [[data-split-group-pane]_&]:pr-40"
             : "pr-3",
           ownsDesktopTitleBar && "drag-region",
           ownsDesktopTitleBar && "wco:pr-(--workspace-native-controls-inset)",
@@ -1825,7 +1825,7 @@ export function RightPanelTabs({ ref, ...props }: RightPanelTabsProps) {
           <span
             aria-hidden
             // A split pane's controls sit in its own corner, over this bar's right end.
-            className="pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-28 [-webkit-app-region:no-drag] [[data-split-group-pane]_&]:absolute [[data-split-group-pane]_&]:top-0 [[data-split-group-pane]_&]:right-3 [[data-split-group-pane]_&]:w-36"
+            className="pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-28 [-webkit-app-region:no-drag] [[data-split-group-pane]_&]:absolute [[data-split-group-pane]_&]:top-0 [[data-split-group-pane]_&]:right-3 [[data-split-group-pane]_&]:w-40"
           />
         ) : null}
       </div>

@@ -909,7 +909,7 @@ describe("sidebar child threads", () => {
     expect(childRow.dataset.sidebarParent).toBe(rowKey(parent));
   });
 
-  it("shows every thread of the open split group as an open row", async () => {
+  it("shows every thread of the open split group as open, the route's as the page", async () => {
     using stack = new DisposableStack();
     useCleanSidebarStorage(stack);
     const threadFor = (id: string) =>
@@ -935,13 +935,13 @@ describe("sidebar child threads", () => {
     stack.defer(() => useSplitViewStore.setState({ groups: [] }));
     mockSidebar({ threads: [left, right, outside], routeThread: left });
     await using screen = await render(sidebarTree());
-    const openness = (thread: EnvironmentThreadShell) =>
-      screen.container
-        .querySelector(`[data-sidebar-row="${rowKey(thread)}"]`)
-        ?.getAttribute("aria-current");
-    await vi.waitFor(() => expect(openness(left)).toBe("page"));
-    expect(openness(right)).toBe("page");
-    expect(openness(outside)).toBeNull();
+    const row = (thread: EnvironmentThreadShell) =>
+      screen.container.querySelector<HTMLElement>(`[data-sidebar-row="${rowKey(thread)}"]`)!;
+    await vi.waitFor(() => expect(row(left).getAttribute("aria-current")).toBe("page"));
+    expect(row(right).getAttribute("aria-current")).toBeNull();
+    expect(row(left).className).toContain("bg-sidebar-row-active");
+    expect(row(right).className).toContain("bg-sidebar-row-active");
+    expect(row(outside).className).not.toContain("bg-sidebar-row-active");
   });
 
   it("child rows are not reorderable or jump targets", async () => {
