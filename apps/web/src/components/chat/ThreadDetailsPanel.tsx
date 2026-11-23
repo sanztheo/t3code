@@ -330,7 +330,21 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
               {visible.usage ? <ThreadDetailsUsage {...props.usage} /> : null}
 
               {visible.context && props.usage.contextWindow ? (
-                <ThreadDetailsContext usage={props.usage.contextWindow} />
+                <ThreadDetailsContext
+                  usage={props.usage.contextWindow}
+                  // Only Claude reports a breakdown; a draft has no session to ask.
+                  {...(!props.draftId &&
+                  props.usage.providers.find(
+                    (provider) => provider.instanceId === props.usage.providerInstanceId,
+                  )?.driver === "claudeAgent"
+                    ? {
+                        breakdownTarget: {
+                          environmentId: props.environmentId,
+                          threadId: props.threadId,
+                        },
+                      }
+                    : {})}
+                />
               ) : null}
 
               {/* Shown only when no section above has content, so an emptied card can be refilled. */}

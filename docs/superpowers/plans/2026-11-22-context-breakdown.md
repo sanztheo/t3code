@@ -31,7 +31,7 @@
 ## Review Focus
 
 1. **Session gone after 30 min idle or a server restart:** the unfolded panel shows the « Send a message » text, never an endless spinner. Pinned in Task 2 (service test) and Task 4 (browser test).
-2. **Thread on Codex, or switched from Claude to Codex:** the service uses the *active* provider thread and answers `provider-unsupported`; the web shows no chevron. Pinned in Task 2 and Task 4.
+2. **Thread on Codex, or switched from Claude to Codex:** the service uses the _active_ provider thread and answers `provider-unsupported`; the web shows no chevron. Pinned in Task 2 and Task 4.
 3. **A turn streaming while unfolded:** many usage reports arrive; at most one request per `updatedAt`, none while folded. Pinned in Task 4.
 4. **Older CLI without `id` on categories:** categories still render; detail groups simply don't attach. Pinned in Task 1.
 5. **Over the limit** (`totalTokens > maxTokens`, percentage above 100): the bar is clamped to 100 %, rows still read correctly. Pinned in Task 4.
@@ -41,12 +41,14 @@
 ### Task 1: Contract and Claude mapping
 
 **Files:**
+
 - Create: `packages/contracts/src/threadContext.ts`
 - Modify: `packages/contracts/src/index.ts` (export it, like its neighbors)
 - Create: `apps/server/src/provider/ClaudeContextBreakdown.ts`
 - Test: `apps/server/src/provider/ClaudeContextBreakdown.test.ts`
 
 **Interfaces:**
+
 - Produces, in `threadContext.ts`:
   - `ThreadContextCategoryKind = Schema.Literals(["used", "free", "buffer", "deferred"])`
   - `ThreadContextCategory = Struct({ id: optional(String), name: String, tokens: NonNegativeInt, kind: ThreadContextCategoryKind })`
@@ -58,26 +60,28 @@
 - Produces, in `ClaudeContextBreakdown.ts`: `claudeContextBreakdown(response: SDKControlGetContextUsageResponse): ThreadContextBreakdown`.
 
 Mapping rules (the part the types do not fix):
+
 - **Categories:**
   - Keep the SDK's order.
   - Drop rows with 0 tokens, except `free_space`.
   - Copy `id`, `name`, `tokens` (rounded) and `kind`.
 - **Detail groups,** one per source list that has a nonzero row. Rows are sorted by tokens, largest first; zero rows are dropped.
 
-| `categoryId` | Source | Row label | Row note |
-|---|---|---|---|
-| `system_prompt` | `systemPromptSections` | name | none |
-| `system_tools` | `systemTools` | name | none |
-| `system_tools_deferred` | `deferredBuiltinTools` | name | `"loaded"` when `isLoaded` |
-| `mcp_tools` | `mcpTools` where `isLoaded !== false`, one row per server | `serverName`, summed tokens | `"<n> tools"` |
-| `mcp_tools_deferred` | `mcpTools` where `isLoaded === false`, one row per server | `serverName`, summed tokens | `"<n> tools"` |
-| `mcp_instructions` | `mcpInstructions` | `serverName` | none |
-| `skills` | `skills.skillFrontmatter` | name | `pluginName ?? source` |
-| `memory_files` | `memoryFiles` | path | type |
-| `custom_agents` | `agents` | `agentType` | source |
-| `messages` | `messageBreakdown` | see below | none |
+| `categoryId`            | Source                                                    | Row label                   | Row note                   |
+| ----------------------- | --------------------------------------------------------- | --------------------------- | -------------------------- |
+| `system_prompt`         | `systemPromptSections`                                    | name                        | none                       |
+| `system_tools`          | `systemTools`                                             | name                        | none                       |
+| `system_tools_deferred` | `deferredBuiltinTools`                                    | name                        | `"loaded"` when `isLoaded` |
+| `mcp_tools`             | `mcpTools` where `isLoaded !== false`, one row per server | `serverName`, summed tokens | `"<n> tools"`              |
+| `mcp_tools_deferred`    | `mcpTools` where `isLoaded === false`, one row per server | `serverName`, summed tokens | `"<n> tools"`              |
+| `mcp_instructions`      | `mcpInstructions`                                         | `serverName`                | none                       |
+| `skills`                | `skills.skillFrontmatter`                                 | name                        | `pluginName ?? source`     |
+| `memory_files`          | `memoryFiles`                                             | path                        | type                       |
+| `custom_agents`         | `agents`                                                  | `agentType`                 | source                     |
+| `messages`              | `messageBreakdown`                                        | see below                   | none                       |
 
-  For `messages`, one row per nonzero field: `"Tool calls"`, `"Tool results"`, `"Assistant messages"`, `"User messages"`, `"Attachments"`, `"Redirected context"`, `"Unattributed"`.
+For `messages`, one row per nonzero field: `"Tool calls"`, `"Tool results"`, `"Assistant messages"`, `"User messages"`, `"Attachments"`, `"Redirected context"`, `"Unattributed"`.
+
 - **Totals:** `autoCompactThreshold` is copied only when `isAutoCompactEnabled`. `maxTokens` comes from the response's `maxTokens`.
 
 - [ ] **Step 1: Write the failing tests** in `ClaudeContextBreakdown.test.ts`, each building a minimal response object:
@@ -94,6 +98,7 @@ Mapping rules (the part the types do not fix):
 ### Task 2: Session method, Claude implementation, server service and RPC
 
 **Files:**
+
 - Modify: `packages/provider-core/src/server/ProviderAdapter.ts:861` (one optional member)
 - Modify: `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts`:
   - `ClaudeAgentSdkQuerySession` interface (~`:723-760`)
@@ -105,6 +110,7 @@ Mapping rules (the part the types do not fix):
 - Test: `apps/server/src/threadContext/ThreadContextRequests.test.ts`, `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.contextBreakdown.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ThreadContextBreakdown`, `ThreadContextBreakdownInput`, `ThreadContextBreakdownError`, `claudeContextBreakdown` (Task 1).
 - Produces:
   - `ProviderAdapterV2SessionRuntime.readContextBreakdown?: (input: { readonly providerThread: OrchestrationV2ProviderThread }) => Effect.Effect<ThreadContextBreakdown, ProviderAdapterV2Error>`.
@@ -113,6 +119,7 @@ Mapping rules (the part the types do not fix):
   - RPC `threadContext.breakdown`: payload `ThreadContextBreakdownInput`, success `ThreadContextBreakdown`, error `ThreadContextBreakdownError`.
 
 Behavior:
+
 - **Service `breakdown`:**
   1. Reads `getThreadRecords(threadId, ["providerThreads"])`.
   2. Takes the provider thread equal to `thread.activeProviderThreadId`, else the last one, like `ws.ts:2617`.
@@ -140,11 +147,13 @@ Behavior:
 ### Task 3: Client query atom
 
 **Files:**
+
 - Create: `packages/client-runtime/src/state/threadContext.ts`
 - Modify: `packages/client-runtime/package.json` (export `./state/thread-context`, copied from the `./state/mcp-apps` entry at `:582`)
 - Create: `apps/web/src/state/threadContext.ts`, a 5-line twin of `apps/web/src/state/mcpApps.ts` exporting `threadContextEnvironment`
 
 **Interfaces:**
+
 - Consumes: RPC `threadContext.breakdown` (Task 2).
 - Produces: `createThreadContextEnvironmentAtoms(runtime)` returning `{ breakdownQuery }`, built with `createEnvironmentRpcQueryAtomFamily(runtime, { label: "environment-data:thread-context:breakdown", tag: WS_METHODS.threadContextBreakdown, idleTtlMs: 60_000 })`. The web exposes it like `mcpApps` does, read with `useEnvironmentQuery` as in `McpAppFrame.tsx:160`.
 
@@ -154,12 +163,14 @@ Behavior:
 ### Task 4: Unfoldable context row
 
 **Files:**
+
 - Create: `apps/web/src/components/chat/ThreadContextBreakdown.tsx`
 - Modify: `apps/web/src/components/chat/ThreadDetailsUsage.tsx:109-173` (`ThreadDetailsContext`)
 - Modify: `apps/web/src/components/chat/ThreadDetailsPanel.tsx:327` (pass the target)
 - Test: `apps/web/src/components/chat/ThreadContextBreakdown.browser.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `breakdownQuery` (Task 3), `ThreadContextBreakdown` (Task 1), `ContextWindowSnapshot`.
 - Produces:
   - `ThreadContextBreakdownList({ breakdown }: { readonly breakdown: ThreadContextBreakdown })`, purely presentational.
@@ -167,6 +178,7 @@ Behavior:
   - `ThreadDetailsContext` gains an optional prop `breakdownTarget?: { environmentId: EnvironmentId; threadId: ThreadId }`. `ThreadDetailsPanel` passes it only when the active thread's provider driver is `"claudeAgent"`.
 
 UI:
+
 - **Context row:** with `breakdownTarget`, the row gets a chevron button (`aria-expanded`, label « Context breakdown »). The `ui/collapsible.tsx` panel under it mounts `ThreadContextBreakdownPanel` only while open, with `revision = usage.updatedAt`.
 - **List:**
   - A stacked bar of the `used` categories. Total width is clamped to 100 %; it keeps the existing threshold tick.

@@ -38,7 +38,10 @@ const codexRuntime = {} as ProviderAdapter.ProviderAdapterV2SessionRuntime;
 function makeLayer(input: {
   readonly providerThreads: ReadonlyArray<Partial<OrchestrationV2ProviderThread>>;
   readonly activeProviderThreadId: ProviderThreadId | null;
-  readonly sessions: ReadonlyMap<ProviderSessionId, ProviderAdapter.ProviderAdapterV2SessionRuntime>;
+  readonly sessions: ReadonlyMap<
+    ProviderSessionId,
+    ProviderAdapter.ProviderAdapterV2SessionRuntime
+  >;
 }) {
   return ThreadContextRequests.layer.pipe(
     Layer.provide(

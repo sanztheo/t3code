@@ -417,9 +417,7 @@ const layerMcpAppRequestsProvided = McpAppRequests.layer.pipe(
 );
 
 const layerThreadContextRequestsProvided = ThreadContextRequests.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(layerThreadManagementProvided, layerProviderSessionManagerProvided),
-  ),
+  Layer.provide(Layer.mergeAll(layerThreadManagementProvided, layerProviderSessionManagerProvided)),
 );
 
 const layerMcpSignInProvided = McpSignIn.layer.pipe(
