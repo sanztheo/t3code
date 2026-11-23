@@ -8,7 +8,13 @@ import { claudeContextBreakdown, readClaudeContextBreakdown } from "./ClaudeCont
 type Category = SDKControlGetContextUsageResponse["categories"][number];
 
 function category(id: Category["id"], tokens: number, kind: Category["kind"] = "used"): Category {
-  return { id, name: id ?? "Unnamed", tokens, color: "promptBorder", kind };
+  return {
+    ...(id === undefined ? {} : { id }),
+    name: id ?? "Unnamed",
+    tokens,
+    color: "promptBorder",
+    kind,
+  };
 }
 
 function response(
