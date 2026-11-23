@@ -166,6 +166,9 @@ export function ThreadDetailsContext({
           tone={used === null ? null : used >= 90 ? "error" : used >= 80 ? "warning" : null}
           tick={tick}
           muted
+          {...(breakdownTarget
+            ? { toggle: { open: breakdownOpen, onToggle: () => setBreakdownOpen((open) => !open) } }
+            : {})}
           value={
             maxTokens !== null
               ? `${usedTokens} / ${formatContextWindowTokens(maxTokens)}`
@@ -199,26 +202,10 @@ export function ThreadDetailsContext({
             </>
           }
         />
-        {breakdownTarget ? (
-          <>
-            <button
-              type="button"
-              aria-label={gt("Context breakdown")}
-              aria-expanded={breakdownOpen}
-              onClick={() => setBreakdownOpen((open) => !open)}
-              className="-ms-2 flex size-6 cursor-pointer items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-black/[0.035] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:hover:bg-white/[0.08]"
-            >
-              <ChevronRightIcon
-                aria-hidden
-                className={cn("size-3 transition-transform", breakdownOpen && "rotate-90")}
-              />
-            </button>
-            {breakdownOpen ? (
-              <div className="col-span-4">
-                <ThreadContextBreakdownPanel target={breakdownTarget} revision={usage.updatedAt} />
-              </div>
-            ) : null}
-          </>
+        {breakdownTarget && breakdownOpen ? (
+          <div className="col-span-4">
+            <ThreadContextBreakdownPanel target={breakdownTarget} revision={usage.updatedAt} />
+          </div>
         ) : null}
       </div>
     </ThreadDetailsSection>
@@ -336,7 +323,10 @@ function PoolRow({ window, now }: { readonly window: LimitPoolWindow; readonly n
   );
 }
 
-/** One label, hairline, and value row; the whole row opens the details tooltip. With `opensUsage` it links to the usage page. */
+/**
+ * One label, hairline, and value row; the whole row opens the details tooltip. With `opensUsage`
+ * it links to the usage page; with `toggle` the whole row folds what follows it.
+ */
 function UsageRow({
   label,
   fill,
@@ -347,6 +337,7 @@ function UsageRow({
   tooltip,
   muted = false,
   opensUsage = false,
+  toggle,
 }: {
   readonly label: string;
   /** Bar fill from 0 to 100. Null hides the bar. */
@@ -359,13 +350,15 @@ function UsageRow({
   readonly tooltip: ReactNode;
   readonly muted?: boolean;
   readonly opensUsage?: boolean;
+  readonly toggle?: { readonly open: boolean; readonly onToggle: () => void };
 }) {
   const gt = useGT();
   const rowProps = {
     "aria-label": gt("{label}: {value}", { label, value: ariaValue }),
     className: cn(
-      "col-span-3 grid h-6 grid-cols-subgrid items-center rounded-lg px-2.5 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-black/[0.035] dark:hover:bg-white/[0.08] dark:data-popup-open:bg-white/[0.08]",
-      opensUsage
+      "grid h-6 grid-cols-subgrid items-center rounded-lg px-2.5 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-black/[0.035] dark:hover:bg-white/[0.08] dark:data-popup-open:bg-white/[0.08]",
+      toggle ? "col-span-4 text-start" : "col-span-3",
+      opensUsage || toggle
         ? "group cursor-pointer active:bg-black/[0.06] dark:active:bg-white/[0.12]"
         : "cursor-default",
     ),
@@ -374,7 +367,18 @@ function UsageRow({
     <Tooltip>
       <TooltipTrigger
         render={
-          opensUsage ? <Link to="/usage" {...rowProps} /> : <div tabIndex={0} {...rowProps} />
+          opensUsage ? (
+            <Link to="/usage" {...rowProps} />
+          ) : toggle ? (
+            <button
+              type="button"
+              aria-expanded={toggle.open}
+              onClick={toggle.onToggle}
+              {...rowProps}
+            />
+          ) : (
+            <div tabIndex={0} {...rowProps} />
+          )
         }
       >
         <span className="max-w-28 truncate text-muted-foreground group-hover:text-foreground">
@@ -422,6 +426,15 @@ function UsageRow({
         >
           {value}
         </span>
+        {toggle ? (
+          <ChevronRightIcon
+            aria-hidden
+            className={cn(
+              "size-3 text-muted-foreground transition-transform group-hover:text-foreground",
+              toggle.open && "rotate-90",
+            )}
+          />
+        ) : null}
       </TooltipTrigger>
       {/* Rows sit 8px inside the card; clear its edge instead of overlapping it. */}
       <TooltipPopup side="left" sideOffset={16}>
