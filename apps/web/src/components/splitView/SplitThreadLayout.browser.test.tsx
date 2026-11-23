@@ -1,7 +1,7 @@
 import appCss from "../../index.css?inline";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
 vi.mock(import("../../state/entities"), () => ({
@@ -34,19 +34,21 @@ const grid: SplitNode = {
   ],
 };
 
-let style: HTMLStyleElement;
-beforeEach(async () => {
-  // Room for the 800×400 layout, so the pointer finds every pane.
+/** App styles, a viewport with room for the 800×400 layout, and no group or drag left behind. */
+async function splitTestEnvironment(): Promise<Disposable> {
   await page.viewport(1000, 600);
-  style = document.createElement("style");
+  const style = document.createElement("style");
   style.textContent = appCss;
   document.head.append(style);
   useSplitViewStore.setState({ groups: [] });
-});
-afterEach(() => {
-  endSplitDrag();
-  style.remove();
-});
+  return {
+    [Symbol.dispose]: () => {
+      endSplitDrag();
+      style.remove();
+      useSplitViewStore.setState({ groups: [] });
+    },
+  };
+}
 
 function sizedContainer() {
   const container = document.createElement("div");
@@ -79,6 +81,7 @@ function layout(
 }
 
 it("places four panes in a 2×2 grid with the route thread active", async () => {
+  using _environment = await splitTestEnvironment();
   await using screen = await render(layout(grid, {}), { container: sizedContainer() });
   const panes = screen.container.querySelectorAll<HTMLElement>("[data-split-pane]");
   expect([...panes].map((element) => element.getBoundingClientRect().toJSON())).toMatchObject([
@@ -93,6 +96,7 @@ it("places four panes in a 2×2 grid with the route thread active", async () => 
 });
 
 it("activates a pane when it is pressed, but not when its close button is", async () => {
+  using _environment = await splitTestEnvironment();
   const onActivate = vi.fn();
   const onClose = vi.fn();
   await using screen = await render(layout(sideBySide, { onActivate, onClose }), {
@@ -100,7 +104,7 @@ it("activates a pane when it is pressed, but not when its close button is", asyn
   });
   await screen.getByText(`active ${key("A")}`).click();
   expect(onActivate).not.toHaveBeenCalled();
-  await screen.getByText(`inactive ${key("B")}`).click();
+  await screen.getByText(`inactive ${key("B")} controls`).click();
   expect(onActivate).toHaveBeenCalledWith(key("B"));
   onActivate.mockClear();
   await screen.getByRole("button", { name: "Close pane" }).nth(1).click();
@@ -109,6 +113,7 @@ it("activates a pane when it is pressed, but not when its close button is", asyn
 });
 
 it("previews the half a dragged thread takes and splits the pane where it drops", async () => {
+  using _environment = await splitTestEnvironment();
   useSplitViewStore.setState({ groups: [sideBySide] });
   await using screen = await render(layout(sideBySide, {}), { container: sizedContainer() });
   await expect.element(screen.getByText("Thread B")).toBeInTheDocument();
@@ -141,6 +146,7 @@ it("previews the half a dragged thread takes and splits the pane where it drops"
 });
 
 it("leaves a multi-thread drag to the composer", async () => {
+  using _environment = await splitTestEnvironment();
   await using screen = await render(layout(sideBySide, {}), { container: sizedContainer() });
   await expect.element(screen.getByText("Thread B")).toBeInTheDocument();
   expect(dropSplitDrag({ x: 600, y: 390 }, [ref("E"), ref("F")])).toBeNull();
