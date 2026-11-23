@@ -6,8 +6,14 @@ import { page } from "vite-plus/test/browser";
 
 vi.mock(import("../../state/entities"), () => ({
   readThreadShell: (() => ({ title: "Dragged" })) as never,
-  useQuietThreadShell: ((ref: { threadId: string } | null) =>
-    ref === null ? null : { title: `Thread ${ref.threadId}` }) as never,
+}));
+// Threads listed here are gone or hidden; the others show under the title `Thread <id>`.
+const unavailableThreadIds = vi.hoisted(() => new Set<string>());
+vi.mock(import("./useSplitPaneState"), () => ({
+  useSplitPaneState: ((ref: { threadId: string }) =>
+    unavailableThreadIds.has(ref.threadId)
+      ? { availability: "unavailable", title: null }
+      : { availability: "ready", title: `Thread ${ref.threadId}` }) as never,
 }));
 
 import { render } from "../../../test/render";
@@ -45,6 +51,7 @@ async function splitTestEnvironment(): Promise<Disposable> {
     [Symbol.dispose]: () => {
       endSplitDrag();
       style.remove();
+      unavailableThreadIds.clear();
       useSplitViewStore.setState({ groups: [] });
     },
   };
@@ -70,7 +77,7 @@ function layout(
         onClose={handlers.onClose ?? (() => {})}
         renderPane={(slot) => (
           <p>
-            {slot.active ? "active" : "inactive"} {slot.threadKey}
+            {slot.active ? "active" : "inactive"} {slot.availability} {slot.threadKey}
             {slot.reserveTitleBarControlInset ? " controls" : ""}
           </p>
         )}
@@ -90,8 +97,8 @@ it("places four panes in a 2×2 grid with the route thread active", async () => 
     { left: 400, top: 0, width: 400, height: 200 },
     { left: 400, top: 200, width: 400, height: 200 },
   ]);
-  await expect.element(screen.getByText(`active ${key("A")}`)).toBeInTheDocument();
-  await expect.element(screen.getByText(`inactive ${key("B")} controls`)).toBeInTheDocument();
+  await expect.element(screen.getByText(`active ready ${key("A")}`)).toBeInTheDocument();
+  await expect.element(screen.getByText(`inactive ready ${key("B")} controls`)).toBeInTheDocument();
   await expect.element(screen.getByText("Thread C")).toBeInTheDocument();
 });
 
@@ -102,13 +109,28 @@ it("activates a pane when it is pressed, but not when its close button is", asyn
   await using screen = await render(layout(sideBySide, { onActivate, onClose }), {
     container: sizedContainer(),
   });
-  await screen.getByText(`active ${key("A")}`).click();
+  await screen.getByText(`active ready ${key("A")}`).click();
   expect(onActivate).not.toHaveBeenCalled();
-  await screen.getByText(`inactive ${key("B")} controls`).click();
+  await screen.getByText(`inactive ready ${key("B")} controls`).click();
   expect(onActivate).toHaveBeenCalledWith(key("B"));
   onActivate.mockClear();
   await screen.getByRole("button", { name: "Close pane" }).nth(1).click();
   expect(onClose).toHaveBeenCalledWith(key("B"));
+  expect(onActivate).not.toHaveBeenCalled();
+});
+
+it("never activates a pane whose thread is gone or hidden, nor shows its title", async () => {
+  using _environment = await splitTestEnvironment();
+  unavailableThreadIds.add("B");
+  const onActivate = vi.fn();
+  await using screen = await render(layout(sideBySide, { onActivate }), {
+    container: sizedContainer(),
+  });
+  const pane = screen.getByText(`inactive unavailable ${key("B")} controls`);
+  await expect.element(pane).toBeInTheDocument();
+  await expect.element(screen.getByText("Thread B")).not.toBeInTheDocument();
+  await pane.click();
+  await screen.getByText("Thread", { exact: true }).click();
   expect(onActivate).not.toHaveBeenCalled();
 });
 
@@ -131,7 +153,9 @@ it("previews the half a dragged thread takes and splits the pane where it drops"
     height: "200px",
   });
 
-  expect(dropSplitDrag(point, [ref("E")])).toEqual(ref("E"));
+  const show = vi.fn(() => Promise.resolve());
+  expect(dropSplitDrag(point, [ref("E")], show)).toBe(true);
+  expect(show).toHaveBeenCalledWith(ref("E"));
   expect(useSplitViewStore.getState().groups).toEqual([
     {
       type: "split",
@@ -149,6 +173,8 @@ it("leaves a multi-thread drag to the composer", async () => {
   using _environment = await splitTestEnvironment();
   await using screen = await render(layout(sideBySide, {}), { container: sizedContainer() });
   await expect.element(screen.getByText("Thread B")).toBeInTheDocument();
-  expect(dropSplitDrag({ x: 600, y: 390 }, [ref("E"), ref("F")])).toBeNull();
+  const show = vi.fn(() => Promise.resolve());
+  expect(dropSplitDrag({ x: 600, y: 390 }, [ref("E"), ref("F")], show)).toBe(false);
+  expect(show).not.toHaveBeenCalled();
   expect(useSplitViewStore.getState().groups).toEqual([]);
 });

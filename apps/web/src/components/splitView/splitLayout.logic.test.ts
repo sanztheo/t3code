@@ -6,8 +6,11 @@ import {
   dropThreadOnPane,
   findSplitGroup,
   getDropRegion,
+  nextSplitPane,
   resolveDropRegion,
   splitDropPreviewRect,
+  splitDropReplacement,
+  splitPaneAvailability,
   splitPaneRects,
   type SplitNode,
 } from "./splitLayout.logic";
@@ -160,36 +163,79 @@ describe("dropThreadOnPane", () => {
 });
 
 describe("closeSplitPane", () => {
-  it("dissolves a two-pane group and activates the other pane", () => {
-    expect(closeSplitPane([row(pane("A"), pane("B"))], "B")).toEqual({
-      groups: [],
-      nextThreadKey: "A",
-    });
+  it("dissolves a two-pane group", () => {
+    expect(closeSplitPane([row(pane("A"), pane("B"))], "B")).toEqual([]);
   });
 
   it("replaces a split left with one child by that child", () => {
-    expect(closeSplitPane([row(column(pane("A"), pane("C")), pane("B"))], "C")).toEqual({
-      groups: [row(pane("A"), pane("B"))],
-      nextThreadKey: "A",
-    });
+    expect(closeSplitPane([row(column(pane("A"), pane("C")), pane("B"))], "C")).toEqual([
+      row(pane("A"), pane("B")),
+    ]);
   });
 
   it("merges a split into its parent when both run the same way", () => {
     expect(
       closeSplitPane([row(pane("A"), column(pane("B"), row(pane("C"), pane("D"))))], "B"),
-    ).toEqual({ groups: [row(pane("A"), pane("C"), pane("D"))], nextThreadKey: "A" });
-  });
-
-  it("activates the next pane when the first one closes", () => {
-    expect(closeSplitPane([row(pane("A"), pane("B"), pane("C"))], "A")).toEqual({
-      groups: [row(pane("B"), pane("C"))],
-      nextThreadKey: "B",
-    });
+    ).toEqual([row(pane("A"), pane("C"), pane("D"))]);
   });
 
   it("does nothing for a thread outside any group", () => {
     const groups = [row(pane("A"), pane("B"))];
-    expect(closeSplitPane(groups, "X")).toEqual({ groups, nextThreadKey: null });
+    expect(closeSplitPane(groups, "X")).toBe(groups);
+  });
+});
+
+describe("nextSplitPane", () => {
+  it("hands over to the pane before, or after for the first one, in reading order", () => {
+    expect(nextSplitPane(row(pane("A"), pane("B")), "B")).toBe("A");
+    expect(nextSplitPane(row(column(pane("A"), pane("C")), pane("B")), "C")).toBe("A");
+    expect(nextSplitPane(row(pane("A"), pane("B"), pane("C")), "A")).toBe("B");
+  });
+
+  it("skips panes that cannot show their thread", () => {
+    const group = row(pane("A"), pane("B"), pane("C"), pane("D"));
+    expect(nextSplitPane(group, "C", (key) => key !== "B")).toBe("A");
+    expect(nextSplitPane(group, "B", (key) => key === "D")).toBe("D");
+    expect(nextSplitPane(group, "B", () => false)).toBeNull();
+  });
+});
+
+describe("splitDropReplacement", () => {
+  it("names the thread a centre drop puts in a group pane's place", () => {
+    const groups = [row(pane("A"), pane("B"))];
+    const drop = { targetThreadKey: "A", draggedThreadKey: "C" } as const;
+    expect(splitDropReplacement(groups, { ...drop, region: "center" })).toEqual({
+      from: "A",
+      to: "C",
+    });
+    expect(splitDropReplacement(groups, { ...drop, region: "right" })).toBeNull();
+    // Over a lone thread nothing is replaced: the dragged thread simply opens.
+    expect(
+      splitDropReplacement([], { targetThreadKey: "X", draggedThreadKey: "C", region: "center" }),
+    ).toBeNull();
+  });
+
+  it("counts an edge drop on a full group as the centre drop it becomes", () => {
+    const grid = row(column(pane("A"), pane("C")), column(pane("B"), pane("D")));
+    expect(
+      splitDropReplacement([grid], { targetThreadKey: "A", draggedThreadKey: "E", region: "left" }),
+    ).toEqual({ from: "A", to: "E" });
+  });
+});
+
+describe("splitPaneAvailability", () => {
+  const listed = { renderState: "ready", listed: true, hiddenByTag: false, hidingAnywhere: false };
+  it.each([
+    { input: listed, expected: "ready" },
+    { input: { ...listed, renderState: "loading" }, expected: "ready" },
+    { input: { ...listed, listed: false, renderState: "loading" }, expected: "loading" },
+    { input: { ...listed, renderState: "missing" }, expected: "unavailable" },
+    // The route closes a thread the tag filter hides, and while hiding any thread off the list.
+    { input: { ...listed, hiddenByTag: true }, expected: "unavailable" },
+    { input: { ...listed, listed: false, hidingAnywhere: true }, expected: "unavailable" },
+    { input: { ...listed, listed: false }, expected: "ready" },
+  ] as const)("is $expected in case %#", ({ input, expected }) => {
+    expect(splitPaneAvailability(input)).toBe(expected);
   });
 });
 
@@ -219,32 +265,69 @@ describe("splitDropPreviewRect", () => {
     { region: "top", expected: { left: 100, top: 50, width: 400, height: 100 } },
     { region: "bottom", expected: { left: 100, top: 150, width: 400, height: 100 } },
     { region: "center", expected: rect },
-  ] as const)("covers the half the new pane takes on $region", ({ region, expected }) => {
-    expect(splitDropPreviewRect(rect, region)).toEqual(expected);
+  ] as const)("covers the half a lone thread gives on $region", ({ region, expected }) => {
+    expect(
+      splitDropPreviewRect([], { targetThreadKey: "A", draggedThreadKey: "B", region }, rect),
+    ).toEqual(expected);
+  });
+
+  it("covers the share the drop gives when the target's split already runs that way", () => {
+    // A|B over 0–800 px: C dropped on B's right edge joins the row as its third pane.
+    const preview = splitDropPreviewRect(
+      [row(pane("A"), pane("B"))],
+      { targetThreadKey: "B", draggedThreadKey: "C", region: "right" },
+      { left: 400, top: 0, width: 400, height: 400 },
+    );
+    expect(preview.left).toBeCloseTo(1600 / 3);
+    expect(preview.width).toBeCloseTo(800 / 3);
+    expect({ top: preview.top, height: preview.height }).toEqual({ top: 0, height: 400 });
+  });
+
+  it("covers the target's place on a centre drop in a group", () => {
+    const target = { left: 400, top: 200, width: 400, height: 200 };
+    expect(
+      splitDropPreviewRect(
+        [row(column(pane("A"), pane("C")), column(pane("B"), pane("D")))],
+        { targetThreadKey: "D", draggedThreadKey: "E", region: "right" },
+        target,
+      ),
+    ).toEqual(target);
   });
 });
 
 describe("decodeSplitGroups", () => {
+  // Saved panes hold scoped thread keys, `environment:thread`.
+  const saved = (threadId: string) => pane(`environment:${threadId}`);
+
   it.each([null, 3, "x", { groups: [] }, [{ type: "split" }], [{ type: "pane" }]])(
     "drops unreadable saved state %#",
-    (saved) => {
-      expect(decodeSplitGroups(saved)).toEqual([]);
+    (value) => {
+      expect(decodeSplitGroups(value)).toEqual([]);
     },
   );
 
   it("keeps valid groups and normalizes them", () => {
     expect(
-      decodeSplitGroups([row(pane("A"), row(pane("B"), pane("C"))), column(pane("D"))]),
-    ).toEqual([row(pane("A"), pane("B"), pane("C"))]);
+      decodeSplitGroups([row(saved("A"), row(saved("B"), saved("C"))), column(saved("D"))]),
+    ).toEqual([row(saved("A"), saved("B"), saved("C"))]);
   });
 
   it("keeps a thread in its first group only and drops groups past four panes", () => {
     expect(
       decodeSplitGroups([
-        row(pane("A"), pane("B")),
-        row(pane("B"), pane("C"), pane("D")),
-        row(pane("E"), pane("F"), pane("G"), pane("H"), pane("I")),
+        row(saved("A"), saved("B")),
+        row(saved("B"), saved("C"), saved("D")),
+        row(saved("E"), saved("F"), saved("G"), saved("H"), saved("I")),
       ]),
-    ).toEqual([row(pane("A"), pane("B")), row(pane("C"), pane("D"))]);
+    ).toEqual([row(saved("A"), saved("B")), row(saved("C"), saved("D"))]);
+  });
+
+  it("drops panes whose key names no thread, then the groups left with one pane", () => {
+    expect(
+      decodeSplitGroups([
+        row(pane(""), saved("A"), pane("not-a-key"), saved("B")),
+        row(pane(":"), saved("C")),
+      ]),
+    ).toEqual([row(saved("A"), saved("B"))]);
   });
 });
