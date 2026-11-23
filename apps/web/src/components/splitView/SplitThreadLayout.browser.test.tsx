@@ -169,6 +169,23 @@ it("previews the half a dragged thread takes and splits the pane where it drops"
   await expect.element(preview).not.toBeInTheDocument();
 });
 
+it("shows the dragged thread before dissolving the group its drop empties", async () => {
+  using _environment = await splitTestEnvironment();
+  useSplitViewStore.setState({ groups: [sideBySide] });
+  await using screen = await render(layout(sideBySide, {}), { container: sizedContainer() });
+  await expect.element(screen.getByText("Thread B")).toBeInTheDocument();
+  let groupsWhenShown: unknown = null;
+  const show = vi.fn(() => {
+    groupsWhenShown = useSplitViewStore.getState().groups;
+    return Promise.resolve();
+  });
+  // B dropped on the centre of pane A, which spans x 0–400.
+  expect(dropSplitDrag({ x: 200, y: 200 }, [ref("B")], show)).toBe(true);
+  expect(groupsWhenShown).toEqual([sideBySide]);
+  await vi.waitFor(() => expect(useSplitViewStore.getState().groups).toEqual([]));
+  expect(useSplitViewStore.getState().replacement).toBeNull();
+});
+
 it("leaves a multi-thread drag to the composer", async () => {
   using _environment = await splitTestEnvironment();
   await using screen = await render(layout(sideBySide, {}), { container: sizedContainer() });

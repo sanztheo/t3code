@@ -341,6 +341,15 @@ describe("workspace area focus", () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(list.button));
   });
 
+  it("focuses the requested split pane's area when several share its name", async () => {
+    using fixture = setup();
+    fixture.area("details", 3).element.dataset.workspaceFocusKey = "details:environment:A";
+    const requested = fixture.area("details", 3);
+    requested.element.dataset.workspaceFocusKey = "details:environment:B";
+    fixture.controller.request({ area: "details", focusKey: "details:environment:B" });
+    await vi.waitFor(() => expect(document.activeElement).toBe(requested.button));
+  });
+
   it("keeps focus on a control that React remounted elsewhere", async () => {
     using fixture = setup();
     fixture.area("composer", 2);

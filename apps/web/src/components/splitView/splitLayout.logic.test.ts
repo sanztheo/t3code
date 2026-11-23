@@ -215,6 +215,16 @@ describe("splitDropReplacement", () => {
     ).toBeNull();
   });
 
+  it("names none when the drop dissolves the group, which leaves no pane to swap", () => {
+    expect(
+      splitDropReplacement([row(pane("A"), pane("B"))], {
+        targetThreadKey: "A",
+        draggedThreadKey: "B",
+        region: "center",
+      }),
+    ).toBeNull();
+  });
+
   it("counts an edge drop on a full group as the centre drop it becomes", () => {
     const grid = row(column(pane("A"), pane("C")), column(pane("B"), pane("D")));
     expect(
@@ -288,6 +298,17 @@ describe("splitDropPreviewRect", () => {
     expect({ top: preview.top, height: preview.height }).toEqual({ top: 0, height: 400 });
   });
 
+  it("covers the whole group when the drop dissolves it", () => {
+    // A|B over 0–800 px: B dropped on A's centre leaves B alone, at full width.
+    expect(
+      splitDropPreviewRect(
+        [row(pane("A"), pane("B"))],
+        { targetThreadKey: "A", draggedThreadKey: "B", region: "center" },
+        { left: 0, top: 0, width: 400, height: 400 },
+      ),
+    ).toEqual({ left: 0, top: 0, width: 800, height: 400 });
+  });
+
   it("covers the target's place on a centre drop in a group", () => {
     const target = { left: 400, top: 200, width: 400, height: 200 };
     expect(
@@ -325,6 +346,12 @@ describe("decodeSplitGroups", () => {
         row(saved("E"), saved("F"), saved("G"), saved("H"), saved("I")),
       ]),
     ).toEqual([row(saved("A"), saved("B")), row(saved("C"), saved("D"))]);
+  });
+
+  it("drops panes whose key has a blank part instead of throwing", () => {
+    expect(
+      decodeSplitGroups([row(pane("environment: "), pane("  :thread"), saved("A"), saved("B"))]),
+    ).toEqual([row(saved("A"), saved("B"))]);
   });
 
   it("drops panes whose key names no thread, then the groups left with one pane", () => {
