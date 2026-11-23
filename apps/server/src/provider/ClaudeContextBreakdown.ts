@@ -75,7 +75,10 @@ export function claudeContextBreakdown(
     ),
     group(
       "mcp_instructions",
-      (response.mcpInstructions ?? []).map((row) => ({ label: row.serverName, tokens: row.tokens })),
+      (response.mcpInstructions ?? []).map((row) => ({
+        label: row.serverName,
+        tokens: row.tokens,
+      })),
     ),
     group(
       "skills",
@@ -87,7 +90,11 @@ export function claudeContextBreakdown(
     ),
     group(
       "memory_files",
-      response.memoryFiles.map((file) => ({ label: file.path, tokens: file.tokens, note: file.type })),
+      response.memoryFiles.map((file) => ({
+        label: file.path,
+        tokens: file.tokens,
+        note: file.type,
+      })),
     ),
     group(
       "custom_agents",

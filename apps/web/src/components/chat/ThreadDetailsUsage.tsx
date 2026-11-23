@@ -17,6 +17,7 @@ import {
 import { formatDuration, limitsNotice } from "@t3tools/shared/usageLimitsCopy";
 import { Link } from "@tanstack/react-router";
 import { msg, useGT, useLocale, useMessages } from "gt-react";
+import { ChevronRightIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { usePrimarySettings } from "../../hooks/useSettings";
@@ -27,9 +28,14 @@ import { formatContextWindowTokens } from "../../lib/contextWindow";
 import { cn } from "../../lib/utils";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { Button } from "../ui/button";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { UsageAccessDialog } from "../usage/UsageAccessDialog";
 import { formatContextWindowCompactionMessage } from "./compaction.logic";
+import {
+  ThreadContextBreakdownPanel,
+  type ThreadContextBreakdownTarget,
+} from "./ThreadContextBreakdown";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import {
   nextPoolReset,
@@ -177,8 +183,18 @@ function UsageAccessRow({
   );
 }
 
-/** The thread's context window. The bar fills as context is used; the tick marks auto-compaction. */
-export function ThreadDetailsContext({ usage }: { readonly usage: ContextWindowSnapshot }) {
+/**
+ * The thread's context window. The bar fills as context is used; the tick marks auto-compaction.
+ * With a `breakdownTarget` the row unfolds into the live session's breakdown.
+ */
+export function ThreadDetailsContext({
+  usage,
+  breakdownTarget,
+}: {
+  readonly usage: ContextWindowSnapshot;
+  readonly breakdownTarget?: ThreadContextBreakdownTarget;
+}) {
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const maxTokens = usage.maxTokens != null && usage.maxTokens > 0 ? usage.maxTokens : null;
   const used =
     maxTokens !== null && usage.usedPercentage !== null
@@ -199,7 +215,16 @@ export function ThreadDetailsContext({ usage }: { readonly usage: ContextWindowS
       title={gt("Context window")}
       showHeading={false}
     >
-      <div className="grid grid-cols-[auto_minmax(3rem,1fr)_auto] gap-x-3 text-xs">
+      <Collapsible
+        open={breakdownOpen}
+        onOpenChange={setBreakdownOpen}
+        className={cn(
+          "grid gap-x-3 text-xs",
+          breakdownTarget
+            ? "grid-cols-[auto_minmax(3rem,1fr)_auto_auto]"
+            : "grid-cols-[auto_minmax(3rem,1fr)_auto]",
+        )}
+      >
         <UsageRow
           label={gt("Context", { $context: "context window row label" })}
           fill={used}
@@ -239,7 +264,25 @@ export function ThreadDetailsContext({ usage }: { readonly usage: ContextWindowS
             </>
           }
         />
-      </div>
+        {breakdownTarget ? (
+          <>
+            <CollapsibleTrigger
+              aria-label={gt("Context breakdown")}
+              className="-ms-2 flex size-6 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-black/[0.035] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/[0.08]"
+            >
+              <ChevronRightIcon
+                aria-hidden
+                className={cn("size-3 transition-transform", breakdownOpen && "rotate-90")}
+              />
+            </CollapsibleTrigger>
+            <CollapsiblePanel className="col-span-4">
+              {breakdownOpen ? (
+                <ThreadContextBreakdownPanel target={breakdownTarget} revision={usage.updatedAt} />
+              ) : null}
+            </CollapsiblePanel>
+          </>
+        ) : null}
+      </Collapsible>
     </ThreadDetailsSection>
   );
 }

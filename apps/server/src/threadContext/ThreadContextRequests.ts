@@ -66,7 +66,9 @@ const make = Effect.gen(function* () {
         Effect.mapError((cause: ProviderAdapter.ProviderAdapterV2Error) =>
           fail(
             input,
-            cause._tag === "ProviderAdapterSessionStoppedError" ? "session-stopped" : "request-failed",
+            cause._tag === "ProviderAdapterSessionStoppedError"
+              ? "session-stopped"
+              : "request-failed",
             cause,
           ),
         ),

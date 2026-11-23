@@ -114,7 +114,7 @@ jobs:
 
       - name: Typecheck
         if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
-        run: vp run typecheck
+        run: vp run typecheck || { vp run --last-details; exit 1; } # TEMP arbre: diagnostic, remove before merge
 
       - name: Lint
         if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
