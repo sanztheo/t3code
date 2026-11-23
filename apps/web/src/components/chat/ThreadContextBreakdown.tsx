@@ -193,13 +193,16 @@ export function ThreadContextBreakdownPanel({
   // Each report swaps in a new query; until it answers, keep the last breakdown of this thread
   // on screen so the list stays mounted and unfolded categories stay open.
   const [shown, setShown] = useState<{
-    readonly threadId: ThreadId;
+    readonly target: ThreadContextBreakdownTarget;
     readonly breakdown: ThreadContextBreakdown;
   } | null>(null);
   if (query.data !== null && shown?.breakdown !== query.data) {
-    setShown({ threadId: target.threadId, breakdown: query.data });
+    setShown({ target, breakdown: query.data });
   }
-  const breakdown = query.data ?? (shown?.threadId === target.threadId ? shown.breakdown : null);
+  const sameThread =
+    shown?.target.environmentId === target.environmentId &&
+    shown.target.threadId === target.threadId;
+  const breakdown = query.data ?? (sameThread ? shown.breakdown : null);
   const failure = query.failure as ThreadContextBreakdownError | null;
   const stopped = failure?.reason === "session-stopped";
   const notice = stopped
