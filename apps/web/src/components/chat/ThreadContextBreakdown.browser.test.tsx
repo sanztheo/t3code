@@ -26,6 +26,8 @@ vi.mock(import("~/state/threadContext"), () => ({
   },
 }));
 
+import "~/index.css";
+
 import { render } from "../../../test/render";
 import { ThreadContextBreakdownList } from "./ThreadContextBreakdown";
 import { ThreadDetailsContext } from "./ThreadDetailsUsage";
