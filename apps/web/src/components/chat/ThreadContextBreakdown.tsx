@@ -190,23 +190,31 @@ export function ThreadContextBreakdownPanel({
       input: { threadId: target.threadId, revision },
     }),
   );
+  // Each report swaps in a new query; until it answers, keep the last breakdown of this thread
+  // on screen so the list stays mounted and unfolded categories stay open.
+  const [shown, setShown] = useState<{
+    readonly threadId: ThreadId;
+    readonly breakdown: ThreadContextBreakdown;
+  } | null>(null);
+  if (query.data !== null && shown?.breakdown !== query.data) {
+    setShown({ threadId: target.threadId, breakdown: query.data });
+  }
+  const breakdown = query.data ?? (shown?.threadId === target.threadId ? shown.breakdown : null);
   const failure = query.failure as ThreadContextBreakdownError | null;
-  const notice =
-    failure?.reason === "session-stopped"
-      ? gt("Send a message to see the breakdown")
-      : query.error !== null
-        ? gt("Couldn't load the breakdown")
-        : query.data === null
-          ? gt("Loading…")
-          : null;
+  const stopped = failure?.reason === "session-stopped";
+  const notice = stopped
+    ? gt("Send a message to see the breakdown")
+    : query.error !== null
+      ? gt("Couldn't load the breakdown")
+      : breakdown === null
+        ? gt("Loading…")
+        : null;
   return (
     <>
       {notice !== null ? (
         <p className="px-2.5 pt-1 pb-2 text-xs text-muted-foreground">{notice}</p>
       ) : null}
-      {query.data !== null && failure?.reason !== "session-stopped" ? (
-        <ThreadContextBreakdownList breakdown={query.data} />
-      ) : null}
+      {breakdown !== null && !stopped ? <ThreadContextBreakdownList breakdown={breakdown} /> : null}
     </>
   );
 }
