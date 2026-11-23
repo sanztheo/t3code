@@ -110,7 +110,7 @@ function CategoryRow({
   const muted = category.kind !== "used";
   const content = (
     <>
-      <span className={cn("size-2 shrink-0 rounded-xs", swatchOf(category))} />
+      <span data-swatch className={cn("size-2 shrink-0 rounded-xs", swatchOf(category))} />
       <span className="min-w-0 flex-1 truncate text-start">{category.name}</span>
       <span className="tabular-nums">{formatContextWindowTokens(category.tokens)}</span>
       <span className="w-12 text-end tabular-nums">{shareOf(category.tokens, maxTokens)}</span>
@@ -122,7 +122,9 @@ function CategoryRow({
   );
   if (details === undefined) {
     return (
-      <div data-kind={category.kind} className={cn(rowClass, "ps-5")}>
+      <div data-kind={category.kind} className={rowClass}>
+        {/* Holds the chevron's place so every swatch lines up. */}
+        <span aria-hidden className="size-3 shrink-0" />
         {content}
       </div>
     );
