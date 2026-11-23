@@ -1,9 +1,12 @@
 import type { SDKControlGetContextUsageResponse } from "@anthropic-ai/claude-agent-sdk";
 import type {
+  ProviderDriverKind,
   ThreadContextBreakdown,
   ThreadContextDetailGroup,
   ThreadContextDetailRow,
 } from "@t3tools/contracts";
+import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
+import * as Effect from "effect/Effect";
 
 const tokenCount = (value: number) => Math.max(0, Math.round(value));
 
@@ -114,4 +117,27 @@ export function claudeContextBreakdown(
       })),
     details,
   };
+}
+
+/** A query from a CLI without `getContextUsage` cannot report one, like a stopped session. */
+export function readClaudeContextBreakdown(
+  query: {
+    readonly getContextUsage?: Effect.Effect<SDKControlGetContextUsageResponse, unknown>;
+  },
+  driver: ProviderDriverKind,
+): Effect.Effect<ThreadContextBreakdown, ProviderAdapter.ProviderAdapterV2Error> {
+  if (query.getContextUsage === undefined) {
+    return Effect.fail(new ProviderAdapter.ProviderAdapterSessionStoppedError({ driver }));
+  }
+  return query.getContextUsage.pipe(
+    Effect.map(claudeContextBreakdown),
+    Effect.mapError(
+      (cause) =>
+        new ProviderAdapter.ProviderAdapterProtocolError({
+          driver,
+          detail: "Claude context usage request failed.",
+          cause,
+        }),
+    ),
+  );
 }

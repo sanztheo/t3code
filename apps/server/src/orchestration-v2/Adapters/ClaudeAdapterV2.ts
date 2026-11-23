@@ -36,6 +36,7 @@ import {
   type ClaudeLedgerUsage,
   type ClaudeModelLedger,
 } from "../../provider/ClaudeTurnTokenUsage.ts";
+import { readClaudeContextBreakdown } from "../../provider/ClaudeContextBreakdown.ts";
 import { toMcpElicitationResponse } from "../../provider/CodexMcpElicitation.ts";
 import {
   type CanUseTool,
@@ -63,6 +64,7 @@ import {
   type SDKAPIRetryMessage,
   type SDKMessage,
   type SDKRateLimitInfo,
+  type SDKControlGetContextUsageResponse,
   type SDKResultMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -827,6 +829,11 @@ export interface ClaudeAgentSdkQuerySession {
   ) => Effect.Effect<boolean, ClaudeAgentSdkQueryRunnerError>;
   readonly mcpServerStatus: Effect.Effect<
     ReadonlyArray<ClaudeMcpServerStatus>,
+    ClaudeAgentSdkQueryRunnerError
+  >;
+  /** Optional so test fakes that never ask can leave it out. */
+  readonly getContextUsage?: Effect.Effect<
+    SDKControlGetContextUsageResponse,
     ClaudeAgentSdkQueryRunnerError
   >;
   readonly readMcpResource: (input: {
@@ -2171,6 +2178,11 @@ export const layerQueryRunner: Layer.Layer<
         mcpServerStatus: Effect.tryPromise({
           try: () => queryRuntime.mcpServerStatus(),
           catch: (cause) => queryRunnerError(cause, "mcpServerStatus"),
+        }),
+        // Summary answers from the last usage and local estimates, so the UI can follow it live.
+        getContextUsage: Effect.tryPromise({
+          try: () => queryRuntime.getContextUsage({ detail: "summary" }),
+          catch: (cause) => queryRunnerError(cause, "getContextUsage"),
         }),
         readMcpResource: ({ server, uri }) =>
           Effect.tryPromise({
@@ -15677,6 +15689,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 );
             }),
           },
+          readContextBreakdown: Effect.fn("ClaudeAdapterV2.readContextBreakdown")(function* ({
+            providerThread,
+          }) {
+            const liveQuery = yield* liveQueryForThread(providerThread);
+            return yield* readClaudeContextBreakdown(liveQuery.query, CLAUDE_PROVIDER);
+          }),
           applyModelSelection: Effect.fn("ClaudeAdapterV2.applyModelSelection")(function* ({
             providerThread,
             modelSelection,
