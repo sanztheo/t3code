@@ -62,14 +62,17 @@ function SplitPane(
         "absolute flex min-h-0 min-w-0 flex-col overflow-hidden border-border",
         rect.left > 0 && "border-l",
         rect.top > 0 && "border-t",
-        // Each pane's own chat header is its title bar; the inactive ones recede.
-        !active && "[&_[data-chat-header]]:opacity-60",
+        // Each pane's own chat header is its title bar; an inactive one's title recedes.
+        !active &&
+          "[&_[data-chat-header]>:not([data-workspace-titlebar-controls])]:opacity-60",
       )}
       style={{
         left: percent(rect.left),
         top: percent(rect.top),
         width: percent(rect.width),
         height: percent(rect.height),
+        // The header and the right panel's tab bar make room for the close button.
+        ["--split-pane-close-reserve" as string]: "2rem",
       }}
       onPointerDownCapture={(event) => activate(event.target)}
       onFocusCapture={(event) => activate(event.target)}
