@@ -1497,7 +1497,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         className={cn(
           "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center gap-1 pl-2",
           props.mode === "inline" && !props.layoutControls
-            ? "pr-[calc(7rem_+_var(--split-pane-close-reserve,0px))] [[data-split-group-pane]_&]:relative"
+            ? "pr-28 [[data-split-group-pane]_&]:relative [[data-split-group-pane]_&]:pr-36"
             : "pr-3",
           ownsDesktopTitleBar && "drag-region",
           ownsDesktopTitleBar && "wco:pr-(--workspace-native-controls-inset)",
