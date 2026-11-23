@@ -114,16 +114,7 @@ jobs:
 
       - name: Typecheck
         if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
-        run: | # TEMP arbre: diagnostic, remove before merge
-          git fetch -q --depth=1 origin 70ffd4c3ea6661920caf1083b3c190884b112270
-          for ref in HEAD 70ffd4c3ea6661920caf1083b3c190884b112270; do
-            git checkout -q "$ref" -- apps packages evals
-            for d in evals packages/contracts packages/provider-core packages/client-runtime apps/server apps/web; do
-              echo "== $ref $d"
-              (cd "$d" && pnpm exec effect-tsgo tsrs --noEmit --extendedDiagnostics 2>&1 | grep -E "Memory used|Instantiations|Check time| error TS" | head -8)
-            done
-          done
-          exit 1
+        run: vp run typecheck
 
       - name: Lint
         if: ${{ !cancelled() && (github.event_name == 'push' || inputs.checks) }}
