@@ -222,6 +222,7 @@ import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
+import { type SplitPaneChrome, SplitPaneCloseButton } from "./splitView/SplitPaneCloseButton";
 import { toastManager } from "./ui/toast";
 import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId } from "~/lib/utils";
@@ -455,6 +456,8 @@ type ChatViewProps =
       forceExpandedMobileComposer?: boolean;
       /** A side chat in its parent's right panel; the parent keeps the keyboard and workspace UI. */
       embedded?: SideChatParentPanel;
+      /** One thread of a split group: its header holds the pane's close button. */
+      splitPane?: SplitPaneChrome;
       routeKind: "server";
       draftId?: never;
     }
@@ -465,6 +468,7 @@ type ChatViewProps =
       reserveTitleBarControlInset?: boolean;
       forceExpandedMobileComposer?: boolean;
       embedded?: never;
+      splitPane?: never;
       routeKind: "draft";
       draftId: DraftId;
     };
@@ -484,6 +488,7 @@ export default function ChatView(props: ChatViewProps) {
     reserveTitleBarControlInset = true,
     forceExpandedMobileComposer = false,
     embedded: parentPanel,
+    splitPane,
   } = props;
   const embedded = parentPanel !== undefined;
   const panelHostShell = useQuietThreadShell(parentPanel?.hostRef ?? null);
@@ -3535,14 +3540,18 @@ export default function ChatView(props: ChatViewProps) {
     onToggleRightPanel: toggleRightPanelStable,
   } satisfies PanelLayoutControlsProps;
   const panelToggleControls = (
-    <PanelLayoutControls
-      {...panelToggleControlProps}
-      showThreadPanelControl={!inlineRightPanelOwnsTitleBar}
-    />
+    <>
+      <PanelLayoutControls
+        {...panelToggleControlProps}
+        showThreadPanelControl={!inlineRightPanelOwnsTitleBar}
+      />
+      {splitPane ? <SplitPaneCloseButton onClose={splitPane.onClose} /> : null}
+    </>
   );
   const threadPanelHeaderControl = <ThreadPanelHeaderControl {...panelToggleControlProps} />;
   const panelLayoutControls = (
     <WorkspaceTitlebarControls
+      placement={splitPane ? "pane" : "window"}
       showMaximizeControl={!shouldUsePlanSidebarSheet}
       rightPanelOpen={rightPanelOpen}
       animationsActive={panelAnimationsActive}
@@ -3600,7 +3609,7 @@ export default function ChatView(props: ChatViewProps) {
                       "wco:pr-(--workspace-native-controls-inset)",
                   )
                 : "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center pl-(--workspace-gutter-start) pr-(--workspace-gutter-end)",
-              COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+              (splitPane?.atWindowStart ?? true) && COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
             )}
           >
             {isElectron && rightPanelControlsAtRoot ? (
@@ -3621,6 +3630,7 @@ export default function ChatView(props: ChatViewProps) {
               parentThreadLink={headerParentThreadLink}
               onOpenThread={onOpenRelatedThreadStable}
               rightPanelOpen={inlineRightPanelOwnsTitleBar}
+              reservePaneCloseControl={splitPane !== undefined}
               onNewThreadInProject={handleNewThreadInActiveProjectStable}
               {...(activeDraftLogicalProjectKey
                 ? { onOpenProjectSettings: handleOpenDraftProjectSettingsStable }

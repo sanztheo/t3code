@@ -10,6 +10,8 @@ import {
   moveThreadContextDrag as moveThreadContextDragGhost,
 } from "./chat/threadContextDrag";
 import { dropSplitDrag, endSplitDrag, moveSplitDrag } from "./splitView/splitDrag";
+import { findSplitGroup, splitThreadKeys } from "./splitView/splitLayout.logic";
+import { useSplitViewStore } from "./splitView/splitViewStore";
 import { discardComposerDraft } from "../lib/discardComposerDraft";
 import { requestCustomSnooze } from "./CustomSnoozeDialog";
 import { useAtomValue } from "@effect/atom-react";
@@ -1167,6 +1169,22 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       : scopedThreadKey(resolveListedAncestorThreadRef(routeThreadRef, threads));
   const childRows = useSidebarChildRows({ threads, delegatedUnderParent, routeThreadKey });
   const activeRowKey = childRows.activeRowKey(routeRowThreadKey, routeThreadKey);
+  const routeSplitGroup = useSplitViewStore((store) =>
+    routeThreadKey === null ? null : findSplitGroup(store.groups, routeThreadKey),
+  );
+  // Every thread of the route's split group is on screen, so each one's row shows as open.
+  const openRowKeys =
+    routeSplitGroup === null
+      ? [activeRowKey]
+      : splitThreadKeys(routeSplitGroup).map((paneKey) => {
+          const paneRef = parseScopedThreadKey(paneKey);
+          return paneRef === null
+            ? null
+            : childRows.activeRowKey(
+                scopedThreadKey(resolveListedAncestorThreadRef(paneRef, threads)),
+                paneKey,
+              );
+        });
   const isSearchingThreads = threadSearchQuery.trim().length > 0;
   // The open draft's first send names its thread in place; a finalized draft reached by
   // navigation resolves through its redirect instead, and still reveals.
@@ -3624,7 +3642,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               : null
                           }
                           wokeAt={threadWokeAt(thread, { now: snoozeNow })}
-                          isActive={routeRowThreadKey === threadKey}
+                          isActive={openRowKeys.includes(threadKey)}
                           revealRef={routeRowThreadKey === threadKey ? revealActiveRow : undefined}
                           isRouteThread={routeThreadKey === threadKey}
                           readOpensPullRequestsInRightPanel={readOpensPullRequestsInRightPanel}
