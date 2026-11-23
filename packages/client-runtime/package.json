@@ -595,6 +595,10 @@
       "types": "./src/state/mcpApps.ts",
       "default": "./src/state/mcpApps.ts"
     },
+    "./state/thread-context": {
+      "types": "./src/state/threadContext.ts",
+      "default": "./src/state/threadContext.ts"
+    },
     "./source-control-clients": {
       "types": "./src/sourceControlClients.ts",
       "default": "./src/sourceControlClients.ts"
