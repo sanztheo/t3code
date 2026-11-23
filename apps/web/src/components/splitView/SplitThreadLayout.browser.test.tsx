@@ -6,6 +6,8 @@ import { page } from "vite-plus/test/browser";
 
 vi.mock(import("../../state/entities"), () => ({
   readThreadShell: (() => ({ title: "Dragged" })) as never,
+  readHiddenThreadKeys: (() => new Set()) as never,
+  readAnyEnvironmentHiding: (() => false) as never,
 }));
 // Threads listed here are gone or hidden; the others show under the title `Thread <id>`.
 const unavailableThreadIds = vi.hoisted(() => new Set<string>());
