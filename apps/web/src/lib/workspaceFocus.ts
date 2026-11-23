@@ -1,3 +1,4 @@
+import type { ScopedThreadRef } from "@t3tools/contracts";
 import type { AnyRouter } from "@tanstack/react-router";
 import { dismissContextMenu } from "../contextMenuFallback";
 import { useRightPanelStore } from "../rightPanelStore";
@@ -18,8 +19,15 @@ export function workspaceAreaProps(name: string, order: number, label?: string) 
   } as const;
 }
 
+/** A thread's details area, told apart from another split pane's. */
+export function threadDetailsFocusKey(threadRef: ScopedThreadRef): string {
+  return `details:${threadRef.environmentId}:${threadRef.threadId}`;
+}
+
 export interface WorkspaceFocusTarget {
   area: string;
+  /** Picks, among areas named `area`, the one with this focus key (one split pane's). */
+  focusKey?: string;
   selector?: string;
   restore?: boolean;
 }
@@ -208,7 +216,7 @@ export function createWorkspaceFocusController(doc: Document) {
     }
     return false;
   };
-  const focus = (name: string, restore = true, selector?: string) => {
+  const focus = (name: string, restore = true, selector?: string, focusKey?: string) => {
     const areas = Array.from(doc.querySelectorAll<HTMLElement>(AREA_SELECTOR)).filter(
       isWorkspaceElementVisible,
     );
@@ -221,7 +229,11 @@ export function createWorkspaceFocusController(doc: Document) {
           ) ??
           areas.find((element) => element.dataset.workspaceArea === "conversation") ??
           areas.find((element) => element.dataset.workspaceArea === "panel"))
-        : areas.find((element) => element.dataset.workspaceArea === name);
+        : areas.find(
+            (element) =>
+              element.dataset.workspaceArea === name &&
+              (focusKey === undefined || element.dataset.workspaceFocusKey === focusKey),
+          );
     if (!area) return false;
     const surface = area.querySelector("[data-right-panel-surface-content]");
     // A lazy surface's Suspense fallback is empty. Wait for its content instead
@@ -334,7 +346,8 @@ export function createWorkspaceFocusController(doc: Document) {
   const schedule = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
-      if (pending && focus(pending.area, pending.restore, pending.selector)) cancelRequest();
+      if (pending && focus(pending.area, pending.restore, pending.selector, pending.focusKey))
+        cancelRequest();
     });
   };
   const request = (target: WorkspaceFocusTarget) => {

@@ -13,8 +13,6 @@
  * trees are immutable.
  */
 
-import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
-
 export type SplitDropRegion = "left" | "right" | "top" | "bottom" | "center";
 type SplitEdge = Exclude<SplitDropRegion, "center">;
 
@@ -257,8 +255,9 @@ export function splitDropPreviewRect(
     findSplitGroup(dropThreadOnPane(groups, drop), drop.draggedThreadKey),
     drop.draggedThreadKey,
   );
-  // A centre drop over a lone thread splits nothing: the dragged thread opens in its place.
-  if (!dropped) return targetRect;
+  // The dragged thread ends alone: over a lone thread it opens in its place, and a group the
+  // drop empties dissolves, so it fills the whole group's box.
+  if (!dropped) return { left, top, width, height };
   return {
     left: left + dropped.left * width,
     top: top + dropped.top * height,
@@ -267,7 +266,10 @@ export function splitDropPreviewRect(
   };
 }
 
-/** The group pane a drop puts the dragged thread in place of, if any. */
+/**
+ * The group pane a drop puts the dragged thread in place of, if any. A drop that empties the
+ * group (its other pane dropped on its centre) leaves no group to show the swap in.
+ */
 export function splitDropReplacement(
   groups: SplitGroups,
   drop: SplitDrop,
@@ -275,7 +277,8 @@ export function splitDropReplacement(
   const replaces =
     drop.targetThreadKey !== drop.draggedThreadKey &&
     effectiveDropRegion(groups, drop) === "center" &&
-    findSplitGroup(groups, drop.targetThreadKey) !== null;
+    findSplitGroup(groups, drop.targetThreadKey) !== null &&
+    findSplitGroup(dropThreadOnPane(groups, drop), drop.draggedThreadKey) !== null;
   return replaces ? { from: drop.targetThreadKey, to: drop.draggedThreadKey } : null;
 }
 
@@ -324,6 +327,19 @@ export function splitPaneAvailability(input: {
   return input.hidingAnywhere ? "unavailable" : "ready";
 }
 
+/**
+ * Whether a saved key is `environment:thread` with neither part blank: the id constructors
+ * throw on a blank one, which would abort the whole decode.
+ */
+function isReadableThreadKey(key: string): boolean {
+  const separator = key.indexOf(":");
+  return (
+    separator > 0 &&
+    key.slice(0, separator).trim().length > 0 &&
+    key.slice(separator + 1).trim().length > 0
+  );
+}
+
 function decodeSplitNode(value: unknown): SplitNode | null {
   if (typeof value !== "object" || value === null) return null;
   const node = value as Record<string, unknown>;
@@ -351,7 +367,7 @@ export function decodeSplitGroups(saved: unknown): SplitGroups {
     if (decoded === null) return [];
     const kept = new Set<string>();
     const group = mapPanes(decoded, (key) => {
-      if (parseScopedThreadKey(key) === null || seen.has(key) || kept.has(key)) return null;
+      if (!isReadableThreadKey(key) || seen.has(key) || kept.has(key)) return null;
       kept.add(key);
       return { type: "pane", threadKey: key };
     });
