@@ -247,7 +247,8 @@ export function splitDropPreviewRect(
   const whole: SplitRect = { left: 0, top: 0, width: 1, height: 1 };
   const placeOf = (group: SplitNode | null, threadKey: string) =>
     group === null ? null : splitPaneRects(group).find((rect) => rect.threadKey === threadKey);
-  const target = placeOf(findSplitGroup(groups, drop.targetThreadKey), drop.targetThreadKey) ?? whole;
+  const target =
+    placeOf(findSplitGroup(groups, drop.targetThreadKey), drop.targetThreadKey) ?? whole;
   const width = targetRect.width / target.width;
   const height = targetRect.height / target.height;
   const left = targetRect.left - target.left * width;

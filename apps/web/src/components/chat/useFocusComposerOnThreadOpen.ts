@@ -24,7 +24,8 @@ export function useFocusComposerOnThreadOpen(
           if (document.activeElement?.matches("[data-sidebar-row] input")) return;
           // Pressing inside a split pane makes it active, and the press already put the focus
           // (a field, the caret in the draft) where the user wants it.
-          if (root.closest(`[${SPLIT_GROUP_PANE_ATTRIBUTE}]`)?.contains(document.activeElement)) return;
+          if (root.closest(`[${SPLIT_GROUP_PANE_ATTRIBUTE}]`)?.contains(document.activeElement))
+            return;
           focusComposer();
         });
       },
