@@ -51,6 +51,8 @@ env:
     apps/server/src/provider/ClaudeContextBreakdown.test.ts
     apps/server/src/threadContext/ThreadContextRequests.test.ts
     apps/web/src/components/chat/ThreadContextBreakdown.browser.test.tsx
+    apps/web/src/components/splitView/splitLayout.logic.test.ts
+    apps/web/src/components/splitView/SplitThreadLayout.browser.test.tsx
 
 jobs:
   check:
