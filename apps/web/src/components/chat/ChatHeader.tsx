@@ -256,7 +256,7 @@ export const ChatHeader = memo(function ChatHeader({
       className={cn(
         "flex min-w-0 flex-1 items-center gap-2 sm:gap-3",
         // A split pane widens the reserve for its close button after the panel toggles.
-        rightPanelOpen ? "pr-10" : "pr-[calc(6rem_+_var(--split-pane-close-reserve,0px))]",
+        rightPanelOpen ? "pr-10" : "pr-24 [[data-split-group-pane]_&]:pr-32",
       )}
       onContextMenu={handleHeaderContextMenu}
     >
