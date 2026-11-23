@@ -1,7 +1,9 @@
 import type { SDKControlGetContextUsageResponse } from "@anthropic-ai/claude-agent-sdk";
+import { ProviderDriverKind } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
+import * as Effect from "effect/Effect";
 
-import { claudeContextBreakdown } from "./ClaudeContextBreakdown.ts";
+import { claudeContextBreakdown, readClaudeContextBreakdown } from "./ClaudeContextBreakdown.ts";
 
 type Category = SDKControlGetContextUsageResponse["categories"][number];
 
@@ -99,4 +101,25 @@ describe("claudeContextBreakdown", () => {
     );
     expect(breakdown.autoCompactThreshold).toBeUndefined();
   });
+});
+
+describe("readClaudeContextBreakdown", () => {
+  const driver = ProviderDriverKind.make("claudeAgent");
+
+  it.effect("reads the breakdown from the live query", () =>
+    Effect.gen(function* () {
+      const breakdown = yield* readClaudeContextBreakdown(
+        { getContextUsage: Effect.succeed(response({ categories: [category("messages", 10)] })) },
+        driver,
+      );
+      expect(breakdown.categories.map((row) => row.id)).toEqual(["messages"]);
+    }),
+  );
+
+  it.effect("reports a stopped session when the query cannot report usage", () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(readClaudeContextBreakdown({}, driver));
+      expect(error._tag).toBe("ProviderAdapterSessionStoppedError");
+    }),
+  );
 });
