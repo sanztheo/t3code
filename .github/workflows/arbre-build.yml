@@ -26,6 +26,10 @@ on:
         description: Preview notes against this previous Arbre release tag without building or publishing.
         type: string
         default: ""
+      draft_release:
+        description: Prepare the signed release for notes review without publishing it or changing the update feed.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -354,6 +358,7 @@ jobs:
         env:
           UPSTREAM_SHA: ${{ needs.sync.outputs.upstream_sha }}
           PREVIOUS_TAG: ${{ needs.sync.outputs.previous_tag }}
+          DRAFT_RELEASE: ${{ inputs.draft_release || 'false' }}
         run: |
           set -euo pipefail
           git clone --no-checkout "$GITHUB_SERVER_URL/$GH_REPO.git" "$RUNNER_TEMP/arbre-source"
@@ -366,13 +371,14 @@ jobs:
             --target "$GITHUB_SHA" \
             --prerelease \
             --latest=false \
+            --draft="$DRAFT_RELEASE" \
             --title "arbre $(date -u +%F) ($VERSION)" \
-            --notes-file release-notes.md
-          echo "Published $GITHUB_SERVER_URL/$GH_REPO/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+            --notes-file release-notes.md | tee -a "$GITHUB_STEP_SUMMARY"
 
       # The patched GitHubProvider reads this pointer when releases.atom lists
       # another tag first, which the fork's leftover upstream tags can cause.
       - name: Point the update feed at it
+        if: ${{ !inputs.draft_release }}
         run: |
           set -euo pipefail
           gh api "repos/$GH_REPO/releases/tags/$TAG" --jq '{tag_name, name, body}' > nightly.json
@@ -382,6 +388,7 @@ jobs:
           gh release upload update-feed nightly.json --clobber
 
       - name: Keep the last 7 arbre releases
+        if: ${{ !inputs.draft_release }}
         run: |
           set -euo pipefail
           gh release list --limit 100 --json tagName,createdAt \
@@ -396,7 +403,7 @@ jobs:
   update-proof:
     name: Prove the in-app update
     needs: [sync, build, release]
-    if: inputs.update_proof && needs.sync.outputs.previous_tag != ''
+    if: inputs.update_proof && !inputs.draft_release && needs.sync.outputs.previous_tag != ''
     runs-on: macos-latest
     timeout-minutes: 30
     env:

@@ -23,6 +23,10 @@ To check a change to the generator, run `Arbre build` on the candidate branch wi
 set to a previous Arbre tag. The run summary shows the notes for that tag through upstream `main`
 and the candidate branch. This skips the build and publication. Check the French highlights
 against the linked ranges, including that the summary contains no raw commit titles or JSON.
+When the exact outgoing notes need approval, dispatch with `draft_release=true`. After reviewing
+the signed draft, confirm the currently offered tag still matches the base used for its notes,
+publish the draft as a prerelease, and replace `nightly.json` on `update-feed` with its
+`tag_name`, `name`, and `body`. Keep the live feed on the previous tag until the draft is public.
 
 ## Critical release invariants
 
