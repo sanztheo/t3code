@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -99,9 +100,8 @@ def summarize(changes, official):
         return NO_CHANGES
 
     # Raw commit prefixes and nested JSON encourage the model to echo the source text.
-    change_text = "\n".join(
-        f"- {PR_SUFFIX.sub('', COMMIT.sub('', subject, count=1)).strip()}" for subject in changes
-    )
+    plain_changes = [PR_SUFFIX.sub("", COMMIT.sub("", subject, count=1)).strip() for subject in changes]
+    change_text = "\n".join(f"- {subject}" for subject in plain_changes)
     source = f"Changements livrés\n{change_text}"
     if official:
         source = f"Notes amont\n{official.strip()}\n\n{source}"
@@ -139,11 +139,13 @@ def summarize(changes, official):
         )
     # llama-completion writes both the answer and its end marker to generic stdout.
     highlights = json.loads(output.removesuffix("[end of text]").strip())
+    raw_subjects = {subject.rstrip(".").casefold() for subject in plain_changes}
     if not isinstance(highlights, list) or len(highlights) > 7 or any(
         not isinstance(line, str)
         or not 10 <= len(line.strip()) <= 220
         or INVALID_HIGHLIGHT.search(line)
         or COMMIT.match(line.strip())
+        or line.strip().rstrip(".").casefold() in raw_subjects
         for line in highlights
     ):
         raise ValueError("The generated highlights have an invalid update-note format")
@@ -160,7 +162,12 @@ def main():
         previous_arbre = provenance(body, "arbre")
         upstream_changes = subjects(f"{previous_upstream}..{upstream}")
         changed_since_previous = dict(subjects("--right-only", "--cherry-pick", f"{previous_arbre}...{arbre}"))
-        official = official_highlights(previous_upstream, upstream) if upstream_changes else ""
+        official = ""
+        if upstream_changes:
+            try:
+                official = official_highlights(previous_upstream, upstream)
+            except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
+                print(f"Could not read optional upstream release notes: {error}", file=sys.stderr)
     else:
         upstream_changes = []
         changed_since_previous = dict(subjects(f"{upstream}..{arbre}"))
