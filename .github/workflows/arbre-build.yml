@@ -77,6 +77,9 @@ jobs:
           set -euo pipefail
           previous="$(gh release list --limit 100 --json tagName,createdAt \
             --jq "[.[] | select(.tagName | test(env.ARBRE_TAG_PATTERN))] | sort_by(.createdAt) | reverse | .[0].tagName // \"\"")"
+          if gh release download update-feed --pattern nightly.json --output - > "$RUNNER_TEMP/previous-feed.json"; then
+            previous="$(jq -er '.tag_name | select(test(env.ARBRE_TAG_PATTERN))' "$RUNNER_TEMP/previous-feed.json")"
+          fi
           echo "previous_tag=$previous" >> "$GITHUB_OUTPUT"
           build=true
           if [[ -n "$previous" && "$FORCE" != "true" ]]; then
@@ -324,6 +327,12 @@ jobs:
       TAG: v${{ needs.build.outputs.version }}
       VERSION: ${{ needs.build.outputs.version }}
     steps:
+      - name: Checkout release provenance
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Download release assets
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -335,19 +344,17 @@ jobs:
       - name: Publish prerelease
         env:
           UPSTREAM_SHA: ${{ needs.sync.outputs.upstream_sha }}
+          PREVIOUS_TAG: ${{ needs.sync.outputs.previous_tag }}
         run: |
           set -euo pipefail
-          notes="$(printf '%s\n' \
-            "T3 Code with the arbre sidebar patch, rebased on upstream main. Install or update with \`scripts/arbre-install.sh\`." \
-            "" \
-            "upstream-main: $UPSTREAM_SHA" \
-            "arbre: $GITHUB_SHA")"
+          git fetch --no-tags https://github.com/pingdotgg/t3code.git "$UPSTREAM_SHA"
+          python3 scripts/arbre-release-notes.py > release-notes.md
           gh release create "$TAG" assets/* \
             --target "$GITHUB_SHA" \
             --prerelease \
             --latest=false \
             --title "arbre $(date -u +%F) ($VERSION)" \
-            --notes "$notes"
+            --notes-file release-notes.md
           echo "Published $GITHUB_SERVER_URL/$GH_REPO/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
 
       # The patched GitHubProvider reads this pointer when releases.atom lists
