@@ -113,11 +113,13 @@ def summarize(changes, official):
         schema = json.dumps({"type": "array", "maxItems": 7, "items": {"type": "string"}})
         output = run(
             str(cli), "--model", str(model), "--conversation", "--single-turn",
-            "--no-display-prompt", "--log-disable", "--ctx-size", "32768", "--n-predict", "600",
-            "--temp", "0", "--json-schema", schema, "--file", str(prompt),
+            "--no-display-prompt", "--log-verbosity", "0", "--ctx-size", "32768",
+            "--n-predict", "600", "--temp", "0", "--json-schema", schema, "--file", str(prompt),
+            env={"PATH": os.defpath, "LANG": "C.UTF-8"},
             timeout=300,
         )
-    highlights = json.loads(output)
+    # llama-completion writes both the answer and its end marker to generic stdout.
+    highlights = json.loads(output.removesuffix("[end of text]").strip())
     if not isinstance(highlights, list) or len(highlights) > 7 or any(
         not isinstance(line, str)
         or not 10 <= len(line) <= 220
