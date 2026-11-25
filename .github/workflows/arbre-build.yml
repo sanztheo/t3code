@@ -22,6 +22,10 @@ on:
         description: After publishing, check that the previous arbre build updates itself to this one.
         type: boolean
         default: false
+      notes_preview:
+        description: Preview notes against this previous Arbre release tag without building or publishing.
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -67,9 +71,20 @@ jobs:
           git fetch --no-tags upstream main
           echo "sha=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Preview release notes
+        if: inputs.notes_preview != ''
+        env:
+          PREVIOUS_TAG: ${{ inputs.notes_preview }}
+          UPSTREAM_SHA: ${{ steps.upstream.outputs.sha }}
+        run: |
+          [[ "$PREVIOUS_TAG" =~ $ARBRE_TAG_PATTERN ]]
+          python3 scripts/arbre-release-notes.py > "$RUNNER_TEMP/release-notes.md"
+          tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/release-notes.md"
+
       # The release body records what it was built from (see the release job).
       - name: Compare with the last arbre build
         id: changes
+        if: inputs.notes_preview == ''
         env:
           FORCE: ${{ inputs.force || inputs.update_proof }}
           UPSTREAM_SHA: ${{ steps.upstream.outputs.sha }}

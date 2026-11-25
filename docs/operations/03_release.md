@@ -19,6 +19,11 @@ requires no model API credentials. The updater uses the release body copied into
 Keep the two provenance lines below the `Full changelog` boundary so builds can compare revisions
 while the updater shows only user notes.
 
+To check a change to the generator, run `Arbre build` on the candidate branch with `notes_preview`
+set to a previous Arbre tag. The run summary shows the notes for that tag through upstream `main`
+and the candidate branch. This skips the build and publication. Check the French highlights
+against the linked ranges, including that the summary contains no raw commit titles or JSON.
+
 ## Critical release invariants
 
 - **Server self-update ordering:** Connected servers update to the exact client version by downloading the GitHub Release CLI archive (or `npx t3@<version>`). Keep the release graph order strictly: `release` (CLI archives + `SHA256SUMS` + desktop installers) → `publish_cli` (`t3` npm launcher) → `deploy_web` (hosted channel alias). Never publish clients before the archives and npm launcher exist.
