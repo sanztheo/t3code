@@ -82,6 +82,13 @@ import * as DesktopWslBackend from "./wsl/DesktopWslBackend.ts";
 import * as DesktopWslEnvironment from "./wsl/DesktopWslEnvironment.ts";
 import * as DesktopWslServerTree from "./wsl/DesktopWslServerTree.ts";
 
+declare const __ARBRE_TELEMETRY_DISABLED__: boolean;
+
+if (typeof __ARBRE_TELEMETRY_DISABLED__ !== "undefined" && __ARBRE_TELEMETRY_DISABLED__) {
+  process.env.T3CODE_TELEMETRY_ENABLED = "false";
+  process.env.T3CODE_OTEL_SDK_DISABLED = "true";
+}
+
 if (process.argv.includes("--version")) {
   try {
     NodeFS.writeSync(process.stdout.fd, `${Electron.app.getVersion()}\n`);
