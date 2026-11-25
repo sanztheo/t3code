@@ -10,6 +10,15 @@ Unified release workflow: `.github/workflows/release.yml`. Beta is a product lab
 - **Preview (`channel=preview`, any branch—default dispatch channel):** Exercises build, signing, notarization, and smoke tests into a **draft** GitHub release and skips npm, web, AUR, and announcements. **Never publish a preview draft or push a test tag**—there is no dry-run tag path (any non-nightly `v*` tag publishes stable), and published preview tags hide nightlies from the update feed. Rebase onto `main` before dispatching `preview`.
 - **PR macOS previews:** Applying the `preview:mac` label triggers a two-workflow split (`desktop-macos-preview.yml` builds the untrusted JS bundle; `desktop-macos-preview-publish.yml` checks author trust against `main`'s `.github/VOUCHED.td`, packages/signs using `main`, and publishes to rolling `desktop-preview`). One-shot per commit; label is removed automatically.
 
+## Arbre updater
+
+Arbre compares the previous offered release’s recorded revisions with the new build inputs. Its
+publisher uses upstream highlights when both revisions match the upstream notes, and otherwise
+summarizes the shipped desktop changes in French using a pinned model on the CI runner. This
+requires no model API credentials. The updater uses the release body copied into `nightly.json`.
+Keep the two provenance lines below the `Full changelog` boundary so builds can compare revisions
+while the updater shows only user notes.
+
 ## Critical release invariants
 
 - **Server self-update ordering:** Connected servers update to the exact client version by downloading the GitHub Release CLI archive (or `npx t3@<version>`). Keep the release graph order strictly: `release` (CLI archives + `SHA256SUMS` + desktop installers) → `publish_cli` (`t3` npm launcher) → `deploy_web` (hosted channel alias). Never publish clients before the archives and npm launcher exist.
