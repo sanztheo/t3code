@@ -13,6 +13,8 @@
  * trees are immutable.
  */
 
+import type { ThreadRouteRenderState } from "../../threadRoutes";
+
 export type SplitDropRegion = "left" | "right" | "top" | "bottom" | "center";
 type SplitEdge = Exclude<SplitDropRegion, "center">;
 
@@ -315,13 +317,15 @@ export type SplitPaneAvailability = "ready" | "loading" | "unavailable";
  * since the route then opens it only as a visible parent's child, which a pane never holds.
  */
 export function splitPaneAvailability(input: {
-  readonly renderState: "ready" | "loading" | "missing";
+  readonly renderState: ThreadRouteRenderState;
   /** Whether the shell lists the thread. */
   readonly listed: boolean;
   readonly hiddenByTag: boolean;
   readonly hidingAnywhere: boolean;
 }): SplitPaneAvailability {
-  if (input.renderState === "missing" || input.hiddenByTag) return "unavailable";
+  if (input.renderState === "missing" || input.renderState === "unreachable" || input.hiddenByTag) {
+    return "unavailable";
+  }
   if (input.listed) return "ready";
   if (input.renderState === "loading") return "loading";
   return input.hidingAnywhere ? "unavailable" : "ready";
