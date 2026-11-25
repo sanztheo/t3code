@@ -35,9 +35,16 @@ const configuredRelayUrl = repoEnv.VITE_T3CODE_RELAY_URL?.trim() || "";
 const configuredClerkPublishableKey = repoEnv.VITE_CLERK_PUBLISHABLE_KEY?.trim() || "";
 const configuredClerkJwtTemplate = repoEnv.VITE_CLERK_JWT_TEMPLATE?.trim() || "";
 const configuredClerkCliOAuthClientId = repoEnv.VITE_CLERK_CLI_OAUTH_CLIENT_ID?.trim() || "";
-const configuredRelayTracingUrl = repoEnv.VITE_RELAY_OTLP_TRACES_URL?.trim() || "";
-const configuredRelayTracingDataset = repoEnv.VITE_RELAY_OTLP_TRACES_DATASET?.trim() || "";
-const configuredRelayTracingToken = repoEnv.VITE_RELAY_OTLP_TRACES_TOKEN?.trim() || "";
+const arbreTelemetryDisabled = repoEnv.T3CODE_ARBRE_NO_TELEMETRY === "1";
+const configuredRelayTracingUrl = arbreTelemetryDisabled
+  ? ""
+  : repoEnv.VITE_RELAY_OTLP_TRACES_URL?.trim() || "";
+const configuredRelayTracingDataset = arbreTelemetryDisabled
+  ? ""
+  : repoEnv.VITE_RELAY_OTLP_TRACES_DATASET?.trim() || "";
+const configuredRelayTracingToken = arbreTelemetryDisabled
+  ? ""
+  : repoEnv.VITE_RELAY_OTLP_TRACES_TOKEN?.trim() || "";
 const configuredHostedAppChannel = process.env.VITE_HOSTED_APP_CHANNEL?.trim() || "";
 const configuredReleaseChannel =
   process.env.T3CODE_BUILT_DEV === "1" ? "dev" : process.env.VITE_RELEASE_CHANNEL?.trim() || "";
@@ -344,6 +351,7 @@ export default defineConfig(({ command }) => {
       "import.meta.env.VITE_CLERK_CLI_OAUTH_CLIENT_ID": JSON.stringify(
         configuredClerkCliOAuthClientId,
       ),
+      "import.meta.env.ARBRE_TELEMETRY_DISABLED": JSON.stringify(arbreTelemetryDisabled),
       "import.meta.env.VITE_RELAY_OTLP_TRACES_URL": JSON.stringify(configuredRelayTracingUrl),
       "import.meta.env.VITE_RELAY_OTLP_TRACES_DATASET": JSON.stringify(
         configuredRelayTracingDataset,

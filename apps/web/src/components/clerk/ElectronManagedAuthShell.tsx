@@ -15,7 +15,12 @@ export default function ElectronManagedAuthShell({
   readonly children: ReactNode;
 }) {
   return (
-    <ClerkProvider appearance={clerkAppearance} publishableKey={publishableKey} passkeys={passkeys}>
+    <ClerkProvider
+      appearance={clerkAppearance}
+      publishableKey={publishableKey}
+      passkeys={passkeys}
+      {...(import.meta.env.ARBRE_TELEMETRY_DISABLED ? { telemetry: false as const } : {})}
+    >
       <ManagedRelayAuthProvider>{children}</ManagedRelayAuthProvider>
     </ClerkProvider>
   );

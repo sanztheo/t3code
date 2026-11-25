@@ -1,9 +1,15 @@
 import { enableCliCompileCache } from "./cliCompileCache.ts";
 
+declare const __ARBRE_TELEMETRY_DISABLED__: boolean;
+
 // Packaged builds load this graph with require(esm): top-level await anywhere in it breaks them.
 // ACP agents spawn `acp-mcp-bridge` per session and `acp-mcp-call` per tool call, so those fast
 // paths dispatch before the full CLI module graph (seconds of evaluation) loads.
 export async function runCliCommand() {
+  if (typeof __ARBRE_TELEMETRY_DISABLED__ !== "undefined" && __ARBRE_TELEMETRY_DISABLED__) {
+    process.env.T3CODE_TELEMETRY_ENABLED = "false";
+    process.env.T3CODE_OTEL_SDK_DISABLED = "true";
+  }
   const command = process.argv[2];
   // Install the socket guard before importing code that can open outbound connections.
   const { ignoreMacosTypeOfServiceEinval } = await import("./outboundHttp.ts");

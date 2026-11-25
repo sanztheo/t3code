@@ -225,6 +225,7 @@ jobs:
       - name: Build desktop artifact
         env:
           T3CODE_DESKTOP_UPDATE_REPOSITORY: ${{ github.repository }}
+          T3CODE_ARBRE_NO_TELEMETRY: "1"
         run: |
           vp run dist:desktop:artifact \
             --platform mac \

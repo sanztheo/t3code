@@ -22,6 +22,7 @@ const devElectronCommand =
     ? "node scripts/dev-electron.mjs"
     : "exec node scripts/dev-electron.mjs";
 const publicConfigDefine = {
+  __ARBRE_TELEMETRY_DISABLED__: JSON.stringify(repoEnv.T3CODE_ARBRE_NO_TELEMETRY === "1"),
   __T3CODE_BUILD_CLERK_PUBLISHABLE_KEY__: JSON.stringify(
     repoEnv.T3CODE_CLERK_PUBLISHABLE_KEY?.trim() ?? "",
   ),

@@ -13,6 +13,13 @@ The server sends usage events to `ingest.t3.codes` under a hashed random install
 - **Managed policy**: Administrators can set `"telemetry": false` in [managed policy](./managed-policy.md#other-capabilities) for servers and desktop apps.
 - **Mobile app**: Toggle **Send crash reports** and **Send connection traces** separately in **Settings → About T3 Code → Diagnostics**.
 
+## Arbre builds
+
+The macOS Arbre package turns off T3 usage events, agent feedback delivery, relay tracing and
+OpenTelemetry export in the app, its bundled server and the web client it serves. The package
+applies this at launch, including from Finder. Its sign-in screens disable Clerk SDK telemetry.
+Sign-in, updates and user-requested connections still use their normal network services.
+
 ## Relay connection diagnostics
 
 T3 Connect sends connection timings, request paths, environment/thread IDs, and error types (no addresses, logs, or stack frames) to Axiom. Disabled by the server telemetry opt-outs above or by `T3CODE_OTEL_SDK_DISABLED` / `OTEL_SDK_DISABLED`.
