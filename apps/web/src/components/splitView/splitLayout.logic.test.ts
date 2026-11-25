@@ -245,6 +245,7 @@ describe("splitPaneAvailability", () => {
     { input: { ...listed, renderState: "loading" }, expected: "ready" },
     { input: { ...listed, listed: false, renderState: "loading" }, expected: "loading" },
     { input: { ...listed, renderState: "missing" }, expected: "unavailable" },
+    { input: { ...listed, listed: false, renderState: "unreachable" }, expected: "unavailable" },
     // The route closes a thread the tag filter hides, and while hiding any thread off the list.
     { input: { ...listed, hiddenByTag: true }, expected: "unavailable" },
     { input: { ...listed, listed: false, hidingAnywhere: true }, expected: "unavailable" },
