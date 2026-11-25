@@ -64,6 +64,13 @@ data is turned off, saved reports stay there and are not sent. `t3 feedback list
 reports, the thread each came from, and a line for each outline; `t3 feedback list --json` shows
 exactly what each one holds.
 
+## Arbre builds
+
+The macOS Arbre package turns off T3 usage events, agent feedback delivery, relay tracing and
+OpenTelemetry export in the app, its bundled server and the web client it serves. The package
+applies this at launch, including from Finder. Its sign-in screens disable Clerk SDK telemetry.
+Sign-in, updates and user-requested connections still use their normal network services.
+
 ## Relay connection diagnostics
 
 T3 Code sends relay connection traces to Axiom to diagnose T3 Connect connectivity. These are

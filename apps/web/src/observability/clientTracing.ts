@@ -74,6 +74,8 @@ let activeConfigKey: string | null = null;
 let pendingConfiguration = Promise.resolve();
 
 export function configureClientTracing(): Promise<void> {
+  if (import.meta.env.ARBRE_TELEMETRY_DISABLED) return Promise.resolve();
+
   if (activeConfigKey !== null) {
     return pendingConfiguration;
   }
