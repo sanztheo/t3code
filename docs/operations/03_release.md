@@ -16,6 +16,9 @@ Arbre compares the previous offered release’s recorded revisions with the new 
 publisher uses upstream highlights when both revisions match the upstream notes, and otherwise
 summarizes the shipped desktop changes in French using a pinned model on the CI runner. This
 requires no model API credentials. The updater uses the release body copied into `nightly.json`.
+Give the small model a bounded selection, with features first, and keep instructions separate
+from source titles. Reject structured commit titles and build metadata before publication;
+a successful inference alone does not establish readable French release notes.
 Keep the two provenance lines below the `Full changelog` boundary so builds can compare revisions
 while the updater shows only user notes.
 
