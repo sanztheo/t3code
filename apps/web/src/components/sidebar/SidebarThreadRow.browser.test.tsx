@@ -165,7 +165,9 @@ describe("sidebar child row", () => {
         isPinned: true,
         onStartRename,
       });
-      const row = screen.getByTestId(variant === "child" ? "sidebar-row-child" : "sidebar-row-folder");
+      const row = screen.getByTestId(
+        variant === "child" ? "sidebar-row-child" : "sidebar-row-folder",
+      );
       const title = row.getByText("Agent voix : urgence transmise", { exact: true });
       await userEvent.hover(title);
 

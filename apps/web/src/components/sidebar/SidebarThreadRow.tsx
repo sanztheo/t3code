@@ -1429,11 +1429,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               aria-label={accessibility.label}
               aria-current={accessibility.current}
               data-testid={
-                isChild
-                  ? "sidebar-row-child"
-                  : inFolder
-                    ? "sidebar-row-folder"
-                    : "sidebar-row-slim"
+                isChild ? "sidebar-row-child" : inFolder ? "sidebar-row-folder" : "sidebar-row-slim"
               }
               aria-busy={isRegeneratingTitle || undefined}
               className={cn(
