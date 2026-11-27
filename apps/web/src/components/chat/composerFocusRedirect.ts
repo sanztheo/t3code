@@ -72,8 +72,14 @@ function isKeyClaimedInPath(event: KeyboardEvent): boolean {
     );
 }
 
-/** `chatRoot` is the receiving chat's root: another chat maximizing its panel leaves it alone. */
-export function shouldRedirectInputToComposer(event: Event, chatRoot: ParentNode): boolean {
+/**
+ * `chatRoot` is the receiving chat's root: another chat maximizing its panel leaves it alone.
+ * Window-wide callers, such as the upstream dictation shortcut, keep the whole document.
+ */
+export function shouldRedirectInputToComposer(
+  event: Event,
+  chatRoot: ParentNode = document,
+): boolean {
   if (event.defaultPrevented) return false;
   // Never persist or send secret-request typing through the composer.
   if (eventPathContainsSelector(event, SECRET_REQUEST_SELECTOR)) return false;
