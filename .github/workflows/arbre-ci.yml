@@ -116,6 +116,7 @@ jobs:
             fi
           done
           test "${#tests[@]}" -gt 0
+          python3 scripts/arbre-release-notes.test.py
           vp test run "${tests[@]}"
 
       - name: Typecheck
