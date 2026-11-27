@@ -1,4 +1,8 @@
-import { GitCommandError, OrchestrationDispatchCommandError } from "@t3tools/contracts";
+import {
+  GitCommandError,
+  OrchestrationDispatchCommandError,
+  UsageReadError,
+} from "@t3tools/contracts";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- A synchronous digest inside the pure provider mapping.
 import * as NodeCrypto from "node:crypto";
 import * as FeatureFlags from "@t3tools/shared/FeatureFlags";
@@ -160,6 +164,7 @@ import {
   toShellApplicationEvent,
   type ShellApplicationEvent,
 } from "./orchestration-v2/ShellStream.ts";
+import { ancestorThreadIds } from "./orchestration-v2/ThreadTokenTotals.ts";
 import { ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION } from "./orchestration-v2/ProjectionStore.ts";
 import {
   coalesceLiveUpdatedEvents,
@@ -266,6 +271,7 @@ import * as HostResources from "./resourceTelemetry/HostResources.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import { commandFeatureUsage, featureUsage } from "./telemetry/FeatureUsage.ts";
 import type { TelemetryOwner } from "./telemetry/Identify.ts";
+import * as TokenUsage from "./usage/TokenUsage.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as TriageService from "./triage/TriageService.ts";
@@ -1254,7 +1260,20 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     const projectShellItems = Effect.fn("ws.orchestrationV2.projectShellItems")(function* (
       events: ReadonlyArray<ShellApplicationEvent>,
     ) {
-      const coalesced = coalesceShellApplicationEvents(events);
+      const spentIn = events.flatMap((stored) =>
+        "aggregateKind" in stored || stored.spent !== true ? [] : [stored],
+      );
+      // The refetched shell is current, so it may carry the batch's last sequence.
+      const spendSequence = Math.max(0, ...events.map((stored) => stored.sequence));
+      // A delegated thread's spend changes the totals of every thread above it.
+      const delegatingThreads = (yield* ancestorThreadIds(
+        sql,
+        spentIn.map((stored) => stored.event.threadId),
+      ).pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []))).map((threadId) => ({
+        sequence: spendSequence,
+        event: { threadId: ThreadId.make(threadId) },
+      }));
+      const coalesced = coalesceShellApplicationEvents([...events, ...delegatingThreads]);
       const threadIds = coalesced.flatMap((stored) =>
         "aggregateKind" in stored ? [] : [stored.event.threadId],
       );
@@ -1550,6 +1569,7 @@ export const layerWsRpc = (
               Effect.orElseSucceed(() => null),
             );
       const usage = yield* UsageService.UsageService;
+      const tokenUsage = yield* TokenUsage.TokenUsage;
       const usageLimitSources = yield* UsageLimitSources.UsageLimitSources;
       const worktreeSetupTracker = yield* WorktreeSetupTracker.WorktreeSetupTracker;
       const projectCloneTracker = yield* ProjectCloneTracker.ProjectCloneTracker;
@@ -2412,7 +2432,26 @@ export const layerWsRpc = (
           input.changes === true ? workflows.watch : Workflows.wholeLists(workflows.watch),
         [WS_METHODS.workflowsCounts]: (_input) => workflows.counts,
         [WS_METHODS.workflowsGet]: (input) =>
-          workflows.get(input.runId).pipe(Effect.mapError(toWorkflowRequestError)),
+          Effect.all([
+            workflows.get(input.runId).pipe(Effect.mapError(toWorkflowRequestError)),
+            tokenUsage.workflowRun(input.runId).pipe(
+              Effect.tapError((error) =>
+                Effect.logWarning("Could not total a workflow run's tokens.", error),
+              ),
+              Effect.orElseSucceed(() => undefined),
+            ),
+          ]).pipe(
+            Effect.map(([detail, tokens]) =>
+              tokens === undefined ? detail : { ...detail, tokens },
+            ),
+          ),
+        [WS_METHODS.workflowsTokenTotals]: (input) =>
+          tokenUsage.workflowRunTotals(input.runIds).pipe(
+            Effect.tapError((error) =>
+              Effect.logWarning("Could not total workflow runs' tokens.", error),
+            ),
+            Effect.orElseSucceed(() => ({})),
+          ),
         [WS_METHODS.workflowsAbout]: (input) =>
           workflows.about(input).pipe(Effect.mapError(toWorkflowRequestError)),
         [WS_METHODS.workflowsAnswer]: (input) =>
@@ -2900,6 +2939,18 @@ export const layerWsRpc = (
         [WS_METHODS.serverGetResourceTelemetryHistory]: (input) =>
           resourceTelemetry.readHistory(input),
         [WS_METHODS.serverGetUsageSummary]: (input) => usage.readSummary(input),
+        [WS_METHODS.serverGetConversationUsage]: (input) =>
+          tokenUsage.conversations(input).pipe(
+            Effect.map((conversations) => ({ conversations })),
+            Effect.mapError(
+              (cause) =>
+                new UsageReadError({
+                  reason: "scanFailed",
+                  detail: "Could not read what conversations spent.",
+                  cause,
+                }),
+            ),
+          ),
         [WS_METHODS.serverRefreshUsageRates]: (_input) => usage.refreshRates,
         [WS_METHODS.serverRetryResourceTelemetry]: (_input) => resourceTelemetry.retry,
         [WS_METHODS.serverCheckOtlpEndpoint]: (input) => otlpEndpointCheck.check(input),

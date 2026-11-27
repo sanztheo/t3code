@@ -137,6 +137,7 @@ import {
   SidebarThreadHostPressureIcon,
   SidebarThreadHostPressureLine,
 } from "./SidebarThreadHostPressure";
+import { ThreadTokenTotal, ThreadTokenTotalsFacts } from "./ThreadTokenTotals";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { ActivityShimmerOverlay } from "../chat/TimelineRowParts";
 import { observeVisibleAnimation } from "~/lib/visibleAnimation";
@@ -310,11 +311,14 @@ function SidebarThreadTooltip({
       <ThreadHoverCard
         title={thread.title}
         footer={
-          supportsMultiplePullRequests && thread.pullRequests.length > 0 ? (
-            <div className="border-t border-border/60 pt-2 pl-0.5 text-xs text-muted-foreground">
-              <ThreadPullRequestsMiniList pullRequests={thread.pullRequests} />
-            </div>
-          ) : null
+          <>
+            {thread.tokenTotals ? <ThreadTokenTotalsFacts totals={thread.tokenTotals} /> : null}
+            {supportsMultiplePullRequests && thread.pullRequests.length > 0 ? (
+              <div className="border-t border-border/60 pt-2 pl-0.5 text-xs text-muted-foreground">
+                <ThreadPullRequestsMiniList pullRequests={thread.pullRequests} />
+              </div>
+            ) : null}
+          </>
         }
       >
         {projectDisplayName ? (
@@ -1367,6 +1371,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         thread={thread}
         providerEntryByInstanceId={props.providerEntryByInstanceId}
       />
+      {thread.tokenTotals ? <ThreadTokenTotal totals={thread.tokenTotals} /> : null}
     </>
   );
   const metaLine = metaLineEmpty ? null : (

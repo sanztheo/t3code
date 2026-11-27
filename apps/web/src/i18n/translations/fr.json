@@ -12221,6 +12221,10 @@
       "v": "v"
     }
   ],
+  "11a5a798041da0a8": "{tokens} tokens",
+  "93258fd90ff5fb18": "{share} lus depuis le cache",
+  "dabcc06b4718d99c": "Cette conversation",
+  "9b871765ff14e380": "{count, plural, one {{count} fil délégué} other {{count} fils délégués}}",
   "e7f35f60e6229cf5": "App de bureau",
   "77be1b7e2a1d3d31": "{count, plural, one {Mettre à jour {count} machine ?} other {Mettre à jour {count} machines ?}}",
   "e4892b21e88abb60": "{count, plural, one {{count} mise à jour de fournisseur} other {{count} mises à jour de fournisseurs}}",
@@ -12311,6 +12315,10 @@
   "c6cf1b06e0433ca3": "Progression de la configuration",
   "e0167c02ca493094": "{step}, étape {number}, {summary}",
   "6389dee75a7cb536": "{step}, étape {number}",
+  "3a786972949c5e3b": "Conversation sans titre",
+  "2ea73921ccabad66": "{count, plural, one {{tokens} dans {count} fil} other {{tokens} dans {count} fils}}",
+  "2a30fc2634766ea1": "Conversation",
+  "25e451e31628e9de": "Délégué",
   "5434b97f68b55d8f": "En avance : consommation plus rapide que l’écoulement de la fenêtre",
   "4e518c48e00f45a9": "Au rythme de la fenêtre",
   "53e1b6487b5ddd6a": "En dessous du rythme : de la marge pour le reste de la fenêtre",
@@ -12449,6 +12457,7 @@
   "f144193ca84271f5": "Coût",
   "fc41173bcd7495a4": "Part",
   "b4ae29a86f8a6ade": "Tokens",
+  "21d30bea8c20628d": "Impossible de lire les conversations.",
   "49c4cd88ca4d260a": "Aucune activité dans cette fenêtre.",
   "0a492183a4c7bb3d": "Sans prix",
   "7853bd9e23f25bb6": "Total",
@@ -12595,6 +12604,7 @@
   "614e5ad58a795fb5": "Arrêter",
   "04b050b0329f0ac8": "a duré {duration}",
   "aff78e1774818ff4": "{duration} jusqu’ici",
+  "ddbb5d2bdc572774": "{tokens} tokens jusqu’ici",
   "38eddd466439afc9": "Ce que l’exécution a touché",
   "156ec271d49ddd70": "Ce qui s’est passé",
   "34f59bbbead0b97f": "{names} et {count} de plus",
@@ -12645,6 +12655,7 @@
     }
   ],
   "8bffb377e2a6a7de": "sa version n’est plus enregistrée",
+  "584a1023bdbd0dfd": "Définition",
   "f92d9132f7b85d1a": "Chargement des étapes…",
   "6ebc59f64c761a49": "Rien pour l’instant.",
   "a759dccd157d7dae": [
@@ -13043,6 +13054,7 @@
   ],
   "91aadfc843c600de": "Vérifier le compte Google",
   "201490988858b511": "retirée par {by}",
+  "43aeffb7e3aa5337": "{count, plural, one {{count} étape} other {{count} étapes}}",
   "99451a5d2d40440f": "Retirée par {by}.",
   "3ee30a50b70fffab": "Retirée par {by} : {reason}",
   "92e129bf413a1220": "retirée",

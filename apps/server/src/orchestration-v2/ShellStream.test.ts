@@ -27,6 +27,7 @@ import {
   shellStreamItemsFromInitialSnapshot,
   shouldPublishShellApplicationEvent,
   skipUnchangedThreadShells,
+  toShellApplicationEvent,
 } from "./ShellStream.ts";
 
 const emptyShellSnapshot = {
@@ -66,6 +67,27 @@ describe("subagent shell events", () => {
     expect(shouldPublishShellApplicationEvent(stored("child", "run.updated"), subagents)).toBe(
       true,
     );
+  });
+
+  it("passes a subagent turn that reports usage, marked so its delegating threads refresh", () => {
+    const subagents = new Set(["child"]);
+    const ended = {
+      sequence: 7,
+      event: {
+        threadId: "child",
+        type: "provider-turn.updated",
+        payload: { status: "completed", turnTokenUsage: { usageStatus: "complete" } },
+      },
+    } as unknown as ApplicationStoredEvent;
+    expect(shouldPublishShellApplicationEvent(ended, subagents)).toBe(true);
+    expect(toShellApplicationEvent(ended)).toEqual({
+      sequence: 7,
+      event: { threadId: "child" },
+      spent: true,
+    });
+    expect(
+      shouldPublishShellApplicationEvent(stored("child", "provider-turn.updated"), subagents),
+    ).toBe(false);
   });
 
   it("tracks subagents created after the subscription starts", () => {

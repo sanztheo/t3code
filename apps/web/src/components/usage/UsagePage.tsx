@@ -79,6 +79,7 @@ import {
 } from "../WorkspaceBreadcrumb";
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { UsageAccessQuestion, type UsageAccessPrompt } from "./UsageAccessDialog";
+import { UsageConversations } from "./UsageConversations";
 import { UsageLimitsSection } from "./UsageLimits";
 import { UsagePriceOverrides } from "./UsagePriceOverrides";
 import { UsageProviderChart } from "./UsageProviderChart";
@@ -651,7 +652,7 @@ function UsageOverview({
   const gt = useGT();
   const locale = useLocale();
   const m = useMessages();
-  const [breakdown, setBreakdown] = useState<"model" | "time">("model");
+  const [breakdown, setBreakdown] = useState<"model" | "time" | "conversation">("model");
   const shownHourly = shownWindow.resolution === "hour";
   const loading = usageLoading(showingKept, selectedEnvironments, refreshingUsage, hiddenProviders);
   // Copy the primitive; JSX reads of loading.partial would merge all derivations into one compiler cache
@@ -920,13 +921,16 @@ function UsageOverview({
             value={[breakdown]}
             onValueChange={(next) => {
               const value = next[0];
-              if (value === "model" || value === "time") setBreakdown(value);
+              if (value === "model" || value === "time" || value === "conversation") {
+                setBreakdown(value);
+              }
             }}
           >
             {(
               [
                 { value: "model", label: gt("Model") },
                 { value: "time", label: shownHourly ? gt("Hour") : gt("Day") },
+                { value: "conversation", label: gt("Conversation") },
               ] as const
             ).map((option) => (
               <Toggle key={option.value} value={option.value}>
@@ -936,7 +940,14 @@ function UsageOverview({
           </ToggleGroup>
         </div>
 
-        {breakdown === "model" ? (
+        {breakdown === "conversation" ? (
+          <UsageConversations
+            environmentIds={selectedEnvironments
+              .filter((environment) => environment.canReadDiagnostics)
+              .map((environment) => environment.environmentId)}
+            window={shownWindow}
+          />
+        ) : breakdown === "model" ? (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-right text-xs text-muted-foreground">

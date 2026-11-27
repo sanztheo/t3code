@@ -9,6 +9,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 import * as EventStore from "../EventStore.ts";
 import * as ProjectionStore from "../ProjectionStore.ts";
+import { clearTokenTotals } from "../ThreadTokenTotals.ts";
 
 export interface ProjectionReplayVerification {
   readonly valid: boolean;
@@ -112,6 +113,7 @@ export const layer: Layer.Layer<
           yield* sql`DELETE FROM orchestration_v2_projection_messages`;
           yield* sql`DELETE FROM orchestration_v2_projection_runtime_requests`;
           yield* sql`DELETE FROM orchestration_v2_projection_provider_turns`;
+          yield* clearTokenTotals(sql);
           yield* sql`DELETE FROM orchestration_v2_projection_provider_threads`;
           yield* sql`DELETE FROM orchestration_v2_projection_provider_session_bindings`;
           yield* sql`DELETE FROM orchestration_v2_projection_provider_sessions`;

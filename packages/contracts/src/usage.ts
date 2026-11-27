@@ -176,6 +176,32 @@ export const UsageSummary = Schema.Struct({
 });
 export type UsageSummary = typeof UsageSummary.Type;
 
+/** The window of a `UsageSummaryInput`, for the conversations that spent tokens in it. */
+export const ConversationUsageInput = Schema.Struct({
+  sinceDay: UsageSummaryInput.fields.sinceDay,
+  untilDay: UsageSummaryInput.fields.untilDay,
+  timeZone: UsageSummaryInput.fields.timeZone,
+  sinceTime: UsageSummaryInput.fields.sinceTime,
+  untilTime: UsageSummaryInput.fields.untilTime,
+});
+export type ConversationUsageInput = typeof ConversationUsageInput.Type;
+
+/** A top-level conversation and what it, then the threads it delegated to, spent in the window. */
+export const ConversationUsage = Schema.Struct({
+  threadId: TrimmedNonEmptyString,
+  title: Schema.String,
+  selfTokens: NonNegativeInt,
+  delegatedTokens: NonNegativeInt,
+  delegatedThreads: NonNegativeInt,
+});
+export type ConversationUsage = typeof ConversationUsage.Type;
+
+/** The costliest conversations first. */
+export const ConversationUsageList = Schema.Struct({
+  conversations: Schema.Array(ConversationUsage),
+});
+export type ConversationUsageList = typeof ConversationUsageList.Type;
+
 export class UsageReadError extends Schema.TaggedError<UsageReadError>()("UsageReadError", {
   reason: Schema.Literals(["scanFailed", "invalidWindow"]),
   detail: TrimmedNonEmptyString,

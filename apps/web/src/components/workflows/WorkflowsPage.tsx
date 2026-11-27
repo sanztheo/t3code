@@ -297,7 +297,7 @@ export function WorkflowsPage() {
           ) : (
             <WorkflowRunsView
               key={environmentId}
-              onOpenDefinitions={() => openDefinitions(null)}
+              onOpenDefinitions={openDefinitions}
               environmentId={environmentId}
               selectedRunId={search.run ?? null}
               paneOpen={paneOpen}
