@@ -163,6 +163,19 @@ describe("groupWorkflowRuns", () => {
     expect(defaultWorkflowRunId(over)).toBe("last");
     expect(defaultWorkflowRunId(groupWorkflowRuns(registered, [], []))).toBeNull();
   });
+
+  it("keeps an ended run under way while an agent someone sent to again is working", () => {
+    const runs = [
+      run("relaunched", { status: "completed", endedAt: at(2), updatedAt: at(2) }),
+      run("done", { status: "completed", endedAt: at(3), updatedAt: at(3) }),
+    ];
+    const running = (workingRunIds?: ReadonlySet<string>) =>
+      workflowRunLists(groupWorkflowRuns(registered, runs, [], workingRunIds)).running.map(
+        (node) => node.run.runId,
+      );
+    expect(running()).toEqual([]);
+    expect(running(new Set(["relaunched"]))).toEqual(["relaunched"]);
+  });
 });
 
 describe("the list of runs", () => {

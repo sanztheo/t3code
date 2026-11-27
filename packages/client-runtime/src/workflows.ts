@@ -151,10 +151,15 @@ export function listedWorkflowRuns(
   return { runs: showSkipped ? runs : runs.filter((run) => !hidden(run)), skipped };
 }
 
+/**
+ * `workingRunIds` are ended runs whose agent thread was sent to again and works: they stay under
+ * way until it stops.
+ */
 export function groupWorkflowRuns(
   workflows: ReadonlyArray<WorkflowSummary>,
   runs: ReadonlyArray<WorkflowRun>,
   questions: ReadonlyArray<WorkflowQuestion>,
+  workingRunIds: ReadonlySet<string> = new Set(),
 ): WorkflowRunGroups {
   const listed = new Set(runs.map((run) => run.runId));
   const childrenOf = new Map<string, WorkflowRun[]>();
@@ -187,8 +192,9 @@ export function groupWorkflowRuns(
   };
   for (const root of roots.map(node)) {
     if (needsPerson(root)) needsYou.push(root);
-    else if (root.run.endedAt === null) sectionOf(root.run.workflow).active.push(root);
-    else sectionOf(root.run.workflow).finished.push(root);
+    else if (root.run.endedAt === null || workingRunIds.has(root.run.runId)) {
+      sectionOf(root.run.workflow).active.push(root);
+    } else sectionOf(root.run.workflow).finished.push(root);
   }
   const registered = new Map(workflows.map((workflow) => [workflow.name, workflow] as const));
   const hasRuns = new Set(runs.map((run) => run.workflow));
