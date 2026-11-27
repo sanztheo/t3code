@@ -33,6 +33,7 @@ import { useEnvironments } from "../../state/environments";
 import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
 import { formatEnvironmentQueryError } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
+import { environmentThreadShells } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useWorkflowSubjectOpener, workflowSubjectLine } from "./WorkflowSubject";
 
@@ -83,6 +84,8 @@ function RunRow(props: {
   readonly onOpen: () => void;
   /** Null when the run has no subject, or one this device cannot open. */
   readonly onOpenSubject: (() => void) | null;
+  /** It ended, then someone sent to one of its agents, which is working. */
+  readonly workingAgain: boolean;
 }) {
   const { run } = props.node;
   const m = useMessages();
@@ -127,7 +130,9 @@ function RunRow(props: {
       )}
       <View className="flex-row items-center gap-2">
         <Text className="min-w-0 flex-1 text-xs text-foreground-muted" numberOfLines={1}>
-          {workflowRunNow(props.node, m)}
+          {props.workingAgain
+            ? m(msg("Ended · an agent is working again", { $context: "workflow run row" }))
+            : workflowRunNow(props.node, m)}
         </Text>
         <Text className="text-xs text-foreground-muted">
           <RelativeTime timestamp={run.updatedAt} />
@@ -152,9 +157,12 @@ function EnvironmentRuns(props: {
   const subjectOpener = useWorkflowSubjectOpener(props.environmentId);
   const [showSkipped, setShowSkipped] = useState(false);
   const { snapshot, tab } = props;
+  const workingRunIds = useAtomValue(
+    environmentThreadShells.workingWorkflowRunsAtom(props.environmentId),
+  );
   const visible = listedWorkflowRuns(snapshot.runs, showSkipped);
   const inTab = workflowRunLists(
-    groupWorkflowRuns(snapshot.workflows, visible.runs, snapshot.questions),
+    groupWorkflowRuns(snapshot.workflows, visible.runs, snapshot.questions, workingRunIds),
   )[tab];
   const kind = tab === "needs-you" ? props.kind : null;
   const listed =
@@ -177,6 +185,7 @@ function EnvironmentRuns(props: {
           <RunRow
             key={node.run.runId}
             node={node}
+            workingAgain={node.run.endedAt !== null && workingRunIds.has(node.run.runId)}
             onOpenSubject={node.run.subject === undefined ? null : subjectOpener(node.run.subject)}
             onOpen={() =>
               navigation.navigate("WorkflowRun", {

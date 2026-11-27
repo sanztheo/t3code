@@ -1,3 +1,4 @@
+import { useAtomValue } from "@effect/atom-react";
 import { type EnvironmentId, type WorkflowRunSubject } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages } from "gt-react";
 import { formatTokens } from "@t3tools/shared/usageFormat";
@@ -9,6 +10,7 @@ import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { cn } from "../../lib/utils";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
+import { environmentThreadShells } from "../../state/threads";
 import { Button } from "../ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "../ui/empty";
 import { ScrollArea } from "../ui/scroll-area";
@@ -112,6 +114,9 @@ export function WorkflowRunsView({
       input: { runIds: (live.data?.runs ?? []).map((run) => run.runId).toSorted() },
     }),
   ).data;
+  const workingRunIds = useAtomValue(
+    environmentThreadShells.workingWorkflowRunsAtom(environmentId),
+  );
   const [pickedTab, setPickedTab] = useState<WorkflowListTab | null>(null);
   const [workflow, setWorkflow] = useState(EVERY_WORKFLOW);
   const [pickedKind, setPickedKind] = useLocalStorage(QUESTION_KIND_KEY, EVERY_KIND, Schema.String);
@@ -213,7 +218,12 @@ export function WorkflowRunsView({
     (run) => run.runId === selectedRunId && run.status === "skipped",
   );
   const visible = listedWorkflowRuns(snapshot.runs, showSkipped || openedSkipped);
-  const groups = groupWorkflowRuns(snapshot.workflows, visible.runs, snapshot.questions);
+  const groups = groupWorkflowRuns(
+    snapshot.workflows,
+    visible.runs,
+    snapshot.questions,
+    workingRunIds,
+  );
   const lists = workflowRunLists(groups);
   const all = allWorkflowRunNodes(groups);
   const section = groups.workflows.find((candidate) => candidate.name === workflow) ?? null;
@@ -420,6 +430,7 @@ export function WorkflowRunsView({
                       onSelect={openListed}
                       onOpenSubject={(subject) => onOpenReference(node.run.runId, subject)}
                       tokens={runTokens?.[node.run.runId]}
+                      workingAgain={node.run.endedAt !== null && workingRunIds.has(node.run.runId)}
                     />
                   ))}
                 </ul>
@@ -481,6 +492,7 @@ function WorkflowRunListItem({
   onSelect,
   onOpenSubject,
   tokens,
+  workingAgain,
 }: {
   readonly node: WorkflowRunNode;
   readonly current: boolean;
@@ -490,6 +502,8 @@ function WorkflowRunListItem({
   readonly onOpenSubject: (subject: WorkflowRunSubject) => void;
   /** What the run spent so far; absent until it spends. */
   readonly tokens: number | undefined;
+  /** It ended, then someone sent to one of its agents, which is working. */
+  readonly workingAgain: boolean;
 }) {
   const { run } = node;
   const about = run.subject;
@@ -512,7 +526,11 @@ function WorkflowRunListItem({
         </span>
         <span className="truncate text-sm text-foreground">{run.title}</span>
         <span className="flex min-w-0 gap-1.5 text-xs text-muted-foreground">
-          <span className="min-w-0 flex-1 truncate">{workflowRunNow(node, m)}</span>
+          <span className="min-w-0 flex-1 truncate">
+            {workingAgain
+              ? m(msg("Ended · an agent is working again", { $context: "workflow run row" }))
+              : workflowRunNow(node, m)}
+          </span>
           {tokens === undefined ? null : (
             <span className="shrink-0 tabular-nums">{formatTokens(tokens)}</span>
           )}
