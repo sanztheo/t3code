@@ -165,7 +165,8 @@ describe("sidebar child row", () => {
         isPinned: true,
         onStartRename,
       });
-      const title = screen.getByText("Agent voix : urgence transmise");
+      const row = screen.getByTestId(variant === "child" ? "sidebar-row-child" : "sidebar-row-folder");
+      const title = row.getByText("Agent voix : urgence transmise", { exact: true });
       await userEvent.hover(title);
 
       for (const name of ["Settle thread", "Snooze thread", "Un-settle thread", "Unpin thread"]) {
