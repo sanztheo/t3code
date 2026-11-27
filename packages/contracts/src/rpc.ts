@@ -419,7 +419,14 @@ import {
   ProviderConsumeResetCreditInput,
   ProviderConsumeResetCreditResult,
 } from "./providerUsageLimits.ts";
-import { UsagePricing, UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
+import {
+  ConversationUsageInput,
+  ConversationUsageList,
+  UsagePricing,
+  UsageReadError,
+  UsageSummary,
+  UsageSummaryInput,
+} from "./usage.ts";
 import {
   StorageCleanupReport,
   DatabaseReclaimError,
@@ -443,6 +450,8 @@ import {
   WorkflowRunDetail,
   WorkflowRunGetInput,
   WorkflowRunResumeInput,
+  WorkflowRunTokenTotals,
+  WorkflowRunTokenTotalsInput,
   WorkflowRunsAbout,
   WorkflowRunsAboutInput,
   WorkflowCounts,
@@ -648,11 +657,13 @@ export const WS_METHODS = {
   serverSignalProcess: "server.signalProcess",
   serverReportClientActivity: "server.reportClientActivity",
   serverGetUsageSummary: "server.getUsageSummary",
+  serverGetConversationUsage: "server.getConversationUsage",
   serverRefreshUsageRates: "server.refreshUsageRates",
 
   workflowsSubscribe: "workflows.subscribe",
   workflowsCounts: "workflows.counts",
   workflowsGet: "workflows.get",
+  workflowsTokenTotals: "workflows.tokenTotals",
   workflowsAbout: "workflows.about",
   workflowsAnswer: "workflows.answer",
   workflowsResume: "workflows.resume",
@@ -1207,6 +1218,12 @@ const WsServerPrepareTriageRpc = Rpc.make(WS_METHODS.serverPrepareTriage, {
 const WsServerGetUsageSummaryRpc = Rpc.make(WS_METHODS.serverGetUsageSummary, {
   payload: UsageSummaryInput,
   success: UsageSummary,
+  error: Schema.Union([EnvironmentAuthorizationError, UsageReadError]),
+});
+
+const WsServerGetConversationUsageRpc = Rpc.make(WS_METHODS.serverGetConversationUsage, {
+  payload: ConversationUsageInput,
+  success: ConversationUsageList,
   error: Schema.Union([EnvironmentAuthorizationError, UsageReadError]),
 });
 
@@ -2383,6 +2400,12 @@ const WsWorkflowsGetRpc = Rpc.make(WS_METHODS.workflowsGet, {
   error: Schema.Union([WorkflowRequestError, EnvironmentAuthorizationError]),
 });
 
+const WsWorkflowsTokenTotalsRpc = Rpc.make(WS_METHODS.workflowsTokenTotals, {
+  payload: WorkflowRunTokenTotalsInput,
+  success: WorkflowRunTokenTotals,
+  error: EnvironmentAuthorizationError,
+});
+
 const WsWorkflowsAboutRpc = Rpc.make(WS_METHODS.workflowsAbout, {
   payload: WorkflowRunsAboutInput,
   success: WorkflowRunsAbout,
@@ -2596,11 +2619,13 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerListTextGeneratorModelsRpc,
   WsServerPrepareTriageRpc,
   WsServerGetUsageSummaryRpc,
+  WsServerGetConversationUsageRpc,
   WsServerRefreshUsageRatesRpc,
   WsServerSignalProcessRpc,
   WsWorkflowsSubscribeRpc,
   WsWorkflowsCountsRpc,
   WsWorkflowsGetRpc,
+  WsWorkflowsTokenTotalsRpc,
   WsWorkflowsAboutRpc,
   WsWorkflowsAnswerRpc,
   WsWorkflowsResumeRpc,

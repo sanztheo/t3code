@@ -12203,6 +12203,10 @@
       "v": "v"
     }
   ],
+  "11a5a798041da0a8": "{tokens} tokens",
+  "93258fd90ff5fb18": "{share} cache reads",
+  "dabcc06b4718d99c": "This chat",
+  "9b871765ff14e380": "{count, plural, one {{count} delegated thread} other {{count} delegated threads}}",
   "e7f35f60e6229cf5": "Desktop app",
   "77be1b7e2a1d3d31": "{count, plural, one {Update {count} machine?} other {Update {count} machines?}}",
   "e4892b21e88abb60": "{count, plural, one {{count} provider update} other {{count} provider updates}}",
@@ -12293,6 +12297,10 @@
   "c6cf1b06e0433ca3": "Setup progress",
   "e0167c02ca493094": "{step}, step {number}, {summary}",
   "6389dee75a7cb536": "{step}, step {number}",
+  "3a786972949c5e3b": "Untitled conversation",
+  "2ea73921ccabad66": "{count, plural, one {{tokens} in {count} thread} other {{tokens} in {count} threads}}",
+  "2a30fc2634766ea1": "Conversation",
+  "25e451e31628e9de": "Delegated",
   "5434b97f68b55d8f": "Ahead of pace: spending faster than the window elapses",
   "4e518c48e00f45a9": "On pace with the window",
   "53e1b6487b5ddd6a": "Under pace: headroom left for the rest of the window",
@@ -12431,6 +12439,7 @@
   "f144193ca84271f5": "Cost",
   "fc41173bcd7495a4": "Share",
   "b4ae29a86f8a6ade": "Tokens",
+  "21d30bea8c20628d": "Conversations could not be read.",
   "49c4cd88ca4d260a": "No activity in this window.",
   "0a492183a4c7bb3d": "Unpriced",
   "7853bd9e23f25bb6": "Total",
@@ -12577,6 +12586,7 @@
   "614e5ad58a795fb5": "Stop",
   "04b050b0329f0ac8": "took {duration}",
   "aff78e1774818ff4": "{duration} so far",
+  "ddbb5d2bdc572774": "{tokens} tokens so far",
   "38eddd466439afc9": "What the run touched",
   "156ec271d49ddd70": "What happened",
   "34f59bbbead0b97f": "{names} and {count} more",
@@ -12627,6 +12637,7 @@
     }
   ],
   "8bffb377e2a6a7de": "its version is no longer registered",
+  "584a1023bdbd0dfd": "Definition",
   "f92d9132f7b85d1a": "Loading steps…",
   "6ebc59f64c761a49": "Nothing yet.",
   "a759dccd157d7dae": [
@@ -13024,6 +13035,7 @@
   ],
   "91aadfc843c600de": "Verify Google account",
   "201490988858b511": "withdrawn by {by}",
+  "43aeffb7e3aa5337": "{count, plural, one {{count} step} other {{count} steps}}",
   "99451a5d2d40440f": "Withdrawn by {by}.",
   "3ee30a50b70fffab": "Withdrawn by {by}: {reason}",
   "92e129bf413a1220": "withdrawn",

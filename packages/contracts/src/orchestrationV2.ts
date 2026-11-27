@@ -2415,6 +2415,19 @@ export const OrchestrationV2LatestVisibleMessageSummary = Schema.Struct({
 export type OrchestrationV2LatestVisibleMessageSummary =
   typeof OrchestrationV2LatestVisibleMessageSummary.Type;
 
+/** What a thread and the threads it delegated to spent, kept current as their turns end. */
+export const OrchestrationV2ThreadTokenTotals = Schema.Struct({
+  selfTokens: NonNegativeInt,
+  delegatedTokens: NonNegativeInt,
+  /** Delegated threads, at any depth, that spent tokens. */
+  delegatedThreads: NonNegativeInt,
+  /** The part of both that was read from the prompt cache. */
+  cachedTokens: NonNegativeInt,
+  /** Both, by the model that spent them. */
+  byModel: Schema.Record(Schema.String, NonNegativeInt),
+});
+export type OrchestrationV2ThreadTokenTotals = typeof OrchestrationV2ThreadTokenTotals.Type;
+
 export const OrchestrationV2ThreadShell = Schema.Struct({
   ...OrchestrationV2CreationFields,
   id: ThreadId,
@@ -2499,6 +2512,8 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
     ),
   ),
   lastTitleRegeneration: Schema.optional(Schema.NullOr(OrchestrationV2LastTitleRegeneration)),
+  /** Absent until the thread or one it delegated to finishes a turn that reported usage. */
+  tokenTotals: Schema.optional(OrchestrationV2ThreadTokenTotals),
   deletedAt: Schema.NullOr(Schema.DateTimeUtc),
 });
 export type OrchestrationV2ThreadShell = typeof OrchestrationV2ThreadShell.Type;

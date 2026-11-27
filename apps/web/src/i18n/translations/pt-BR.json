@@ -12194,6 +12194,10 @@
       "v": "v"
     }
   ],
+  "11a5a798041da0a8": "{tokens} tokens",
+  "93258fd90ff5fb18": "{share} lido do cache",
+  "dabcc06b4718d99c": "Este chat",
+  "9b871765ff14e380": "{count, plural, one {{count} thread delegada} other {{count} threads delegadas}}",
   "e7f35f60e6229cf5": "App desktop",
   "77be1b7e2a1d3d31": "{count, plural, one {Atualizar {count} máquina?} other {Atualizar {count} máquinas?}}",
   "e4892b21e88abb60": "{count, plural, one {{count} atualização de provedor} other {{count} atualizações de provedores}}",
@@ -12284,6 +12288,10 @@
   "c6cf1b06e0433ca3": "Progresso da configuração",
   "e0167c02ca493094": "{step}, etapa {number}, {summary}",
   "6389dee75a7cb536": "{step}, etapa {number}",
+  "3a786972949c5e3b": "Conversa sem título",
+  "2ea73921ccabad66": "{count, plural, one {{tokens} em {count} thread} other {{tokens} em {count} threads}}",
+  "2a30fc2634766ea1": "Conversa",
+  "25e451e31628e9de": "Delegado",
   "5434b97f68b55d8f": "Acima do ritmo: consumindo mais rápido do que a janela passa",
   "4e518c48e00f45a9": "No ritmo da janela",
   "53e1b6487b5ddd6a": "Abaixo do ritmo: sobra margem para o resto da janela",
@@ -12422,6 +12430,7 @@
   "f144193ca84271f5": "Custo",
   "fc41173bcd7495a4": "Participação",
   "b4ae29a86f8a6ade": "Tokens",
+  "21d30bea8c20628d": "Não foi possível ler as conversas.",
   "49c4cd88ca4d260a": "Nenhuma atividade nesta janela.",
   "0a492183a4c7bb3d": "Sem preço",
   "7853bd9e23f25bb6": "Total",
@@ -12568,6 +12577,7 @@
   "614e5ad58a795fb5": "Parar",
   "04b050b0329f0ac8": "levou {duration}",
   "aff78e1774818ff4": "{duration} até agora",
+  "ddbb5d2bdc572774": "{tokens} tokens até agora",
   "38eddd466439afc9": "O que a execução tocou",
   "156ec271d49ddd70": "O que aconteceu",
   "34f59bbbead0b97f": "{names} e mais {count}",
@@ -12618,6 +12628,7 @@
     }
   ],
   "8bffb377e2a6a7de": "sua versão não está mais registrada",
+  "584a1023bdbd0dfd": "Definição",
   "f92d9132f7b85d1a": "Carregando etapas…",
   "6ebc59f64c761a49": "Nada ainda.",
   "a759dccd157d7dae": [
@@ -13016,6 +13027,7 @@
   ],
   "91aadfc843c600de": "Verificar conta Google",
   "201490988858b511": "retirada por {by}",
+  "43aeffb7e3aa5337": "{count, plural, one {{count} etapa} other {{count} etapas}}",
   "99451a5d2d40440f": "Retirada por {by}.",
   "3ee30a50b70fffab": "Retirada por {by}: {reason}",
   "92e129bf413a1220": "retirada",

@@ -229,6 +229,7 @@ import * as AntigravityUsage from "./provider/Drivers/AntigravityUsage.ts";
 import { MuseUsageHome } from "@t3tools/provider-muse/server";
 import * as CursorAccountReader from "@t3tools/provider-cursor/server/CursorAccountReader";
 import * as CursorUsageAccounts from "@t3tools/provider-cursor/server/CursorUsageAccounts";
+import * as TokenUsage from "./usage/TokenUsage.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as CodexUsageHistory from "./usage/CodexUsageHistory.ts";
 import * as RuntimeLayer from "./orchestration-v2/runtimeLayer.ts";
@@ -793,7 +794,12 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   Layer.provideMerge(RuntimeLayer.layerEventInfrastructure),
   // Settlement registers queued settle scripts in PendingSettleScripts; storage cleanup reads them.
   Layer.provideMerge(
-    Layer.mergeAll(ProjectStore.layer, ThreadSearch.layer, PendingSettleScripts.layer),
+    Layer.mergeAll(
+      ProjectStore.layer,
+      ThreadSearch.layer,
+      PendingSettleScripts.layer,
+      TokenUsage.layer,
+    ),
   ),
   Layer.provideMerge(SecretCheck.layer),
   Layer.provideMerge(SecretResolver.layer),

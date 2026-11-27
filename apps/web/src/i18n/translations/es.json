@@ -12189,6 +12189,10 @@
       "v": "v"
     }
   ],
+  "11a5a798041da0a8": "{tokens} tokens",
+  "93258fd90ff5fb18": "{share} leído de caché",
+  "dabcc06b4718d99c": "Este chat",
+  "9b871765ff14e380": "{count, plural, one {{count} hilo delegado} other {{count} hilos delegados}}",
   "e7f35f60e6229cf5": "App de escritorio",
   "77be1b7e2a1d3d31": "{count, plural, one {¿Actualizar {count} máquina?} other {¿Actualizar {count} máquinas?}}",
   "e4892b21e88abb60": "{count, plural, one {{count} actualización de proveedor} other {{count} actualizaciones de proveedores}}",
@@ -12279,6 +12283,10 @@
   "c6cf1b06e0433ca3": "Progreso de la configuración",
   "e0167c02ca493094": "{step}, paso {number}, {summary}",
   "6389dee75a7cb536": "{step}, paso {number}",
+  "3a786972949c5e3b": "Conversación sin título",
+  "2ea73921ccabad66": "{count, plural, one {{tokens} en {count} hilo} other {{tokens} en {count} hilos}}",
+  "2a30fc2634766ea1": "Conversación",
+  "25e451e31628e9de": "Delegado",
   "5434b97f68b55d8f": "Por encima del ritmo: gastas más rápido de lo que avanza la ventana",
   "4e518c48e00f45a9": "Al ritmo de la ventana",
   "53e1b6487b5ddd6a": "Por debajo del ritmo: queda margen para el resto de la ventana",
@@ -12417,6 +12425,7 @@
   "f144193ca84271f5": "Coste",
   "fc41173bcd7495a4": "Proporción",
   "b4ae29a86f8a6ade": "Tokens",
+  "21d30bea8c20628d": "No se pudieron leer las conversaciones.",
   "49c4cd88ca4d260a": "No hay actividad en esta ventana.",
   "0a492183a4c7bb3d": "Sin precio",
   "7853bd9e23f25bb6": "Total",
@@ -12563,6 +12572,7 @@
   "614e5ad58a795fb5": "Detener",
   "04b050b0329f0ac8": "tardó {duration}",
   "aff78e1774818ff4": "{duration} hasta ahora",
+  "ddbb5d2bdc572774": "{tokens} tokens hasta ahora",
   "38eddd466439afc9": "Lo que tocó la ejecución",
   "156ec271d49ddd70": "Qué ocurrió",
   "34f59bbbead0b97f": "{names} y {count} más",
@@ -12613,6 +12623,7 @@
     }
   ],
   "8bffb377e2a6a7de": "su versión ya no está registrada",
+  "584a1023bdbd0dfd": "Definición",
   "f92d9132f7b85d1a": "Cargando pasos…",
   "6ebc59f64c761a49": "Nada todavía.",
   "a759dccd157d7dae": [
@@ -13011,6 +13022,7 @@
   ],
   "91aadfc843c600de": "Verificar cuenta de Google",
   "201490988858b511": "retirada por {by}",
+  "43aeffb7e3aa5337": "{count, plural, one {{count} paso} other {{count} pasos}}",
   "99451a5d2d40440f": "Retirada por {by}.",
   "3ee30a50b70fffab": "Retirada por {by}: {reason}",
   "92e129bf413a1220": "retirada",

@@ -12202,6 +12202,10 @@
       "v": "v"
     }
   ],
+  "11a5a798041da0a8": "{tokens} tokens",
+  "93258fd90ff5fb18": "{share} lästa från cache",
+  "dabcc06b4718d99c": "Den här chatten",
+  "9b871765ff14e380": "{count, plural, one {{count} delegerad tråd} other {{count} delegerade trådar}}",
   "e7f35f60e6229cf5": "Skrivbordsapp",
   "77be1b7e2a1d3d31": "{count, plural, one {Uppdatera {count} dator?} other {Uppdatera {count} datorer?}}",
   "e4892b21e88abb60": "{count, plural, one {{count} leverantörsuppdatering} other {{count} leverantörsuppdateringar}}",
@@ -12292,6 +12296,10 @@
   "c6cf1b06e0433ca3": "Konfigurationsförlopp",
   "e0167c02ca493094": "{step}, steg {number}, {summary}",
   "6389dee75a7cb536": "{step}, steg {number}",
+  "3a786972949c5e3b": "Namnlös konversation",
+  "2ea73921ccabad66": "{count, plural, one {{tokens} i {count} tråd} other {{tokens} i {count} trådar}}",
+  "2a30fc2634766ea1": "Konversation",
+  "25e451e31628e9de": "Delegerat",
   "5434b97f68b55d8f": "Före takten: förbrukar snabbare än fönstret löper",
   "4e518c48e00f45a9": "I takt med fönstret",
   "53e1b6487b5ddd6a": "Under takten: utrymme kvar för resten av fönstret",
@@ -12430,6 +12438,7 @@
   "f144193ca84271f5": "Kostnad",
   "fc41173bcd7495a4": "Andel",
   "b4ae29a86f8a6ade": "Token",
+  "21d30bea8c20628d": "Konversationerna kunde inte läsas.",
   "49c4cd88ca4d260a": "Ingen aktivitet i det här fönstret.",
   "0a492183a4c7bb3d": "Utan pris",
   "7853bd9e23f25bb6": "Totalt",
@@ -12576,6 +12585,7 @@
   "614e5ad58a795fb5": "Stoppa",
   "04b050b0329f0ac8": "tog {duration}",
   "aff78e1774818ff4": "{duration} hittills",
+  "ddbb5d2bdc572774": "{tokens} tokens hittills",
   "38eddd466439afc9": "Vad körningen rörde",
   "156ec271d49ddd70": "Vad som hände",
   "34f59bbbead0b97f": "{names} och {count} till",
@@ -12626,6 +12636,7 @@
     }
   ],
   "8bffb377e2a6a7de": "dess version är inte längre registrerad",
+  "584a1023bdbd0dfd": "Definition",
   "f92d9132f7b85d1a": "Läser in steg…",
   "6ebc59f64c761a49": "Inget än.",
   "a759dccd157d7dae": [
@@ -13023,6 +13034,7 @@
   ],
   "91aadfc843c600de": "Verifiera Google-konto",
   "201490988858b511": "återkallad av {by}",
+  "43aeffb7e3aa5337": "{count, plural, one {{count} steg} other {{count} steg}}",
   "99451a5d2d40440f": "Återkallad av {by}.",
   "3ee30a50b70fffab": "Återkallad av {by}: {reason}",
   "92e129bf413a1220": "återkallad",

@@ -6,6 +6,14 @@ import * as Digest from "effect/crypto/Digest";
 import * as Stream from "effect/Stream";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 import { makeThreadFind } from "./ThreadFind.ts";
+import {
+  applyTurnSpend,
+  ensureTokenTotals,
+  decodeStoredTurnUsage,
+  tokenTotalsFromRow,
+  TOKEN_TOTALS_TABLE,
+  turnSpend,
+} from "./ThreadTokenTotals.ts";
 import { unsentManualContinuationSource } from "@t3tools/shared/orchestrationV2ManualContinuation";
 import type {
   OrchestrationV2ThreadLinkMetadata,
@@ -1298,6 +1306,11 @@ type ShellThreadRow = {
   readonly latest_user_message_at: string | null;
   readonly latest_user_authored_message_at: string | null;
   readonly has_actionable_proposed_plan: number;
+  readonly token_self: number | null;
+  readonly token_delegated: number | null;
+  readonly token_delegated_threads: number | null;
+  readonly token_cached: number | null;
+  readonly token_models_json: string | null;
 };
 
 type ShellRunRow = {
@@ -2163,6 +2176,7 @@ type ShellThreadState = {
   readonly latestUserMessageAt: DateTime.Utc | null;
   readonly latestUserAuthoredMessageAt: DateTime.Utc | null;
   readonly hasActionableProposedPlan: boolean;
+  readonly tokenTotals: OrchestrationV2ThreadShell["tokenTotals"] | null;
   readonly pendingBackgroundTasks: OrchestrationV2ThreadShell["pendingBackgroundTasks"];
   readonly providerInstanceHistory: OrchestrationV2ThreadShell["providerInstanceHistory"];
   readonly goal: OrchestrationV2ThreadShell["goal"];
@@ -2367,6 +2381,7 @@ function shellFromState(input: {
     titleRegeneration: input.state.thread.titleRegeneration ?? null,
     lastTitleRegeneration: input.state.thread.lastTitleRegeneration ?? null,
     limitRecovery: input.state.thread.limitRecovery ?? null,
+    ...(input.state.tokenTotals == null ? {} : { tokenTotals: input.state.tokenTotals }),
     deletedAt: input.state.thread.deletedAt,
   };
 }
@@ -2398,6 +2413,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, ProjectionStoreService
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const digests = yield* Digest.Digest;
+    yield* ensureTokenTotals(sql).pipe(Effect.orDie);
 
     // SQLite uses the partial conversation index of migration 082 only for this exact predicate.
     const CONVERSATION_INDEX_EXCLUDED_TYPES = sql.literal(
@@ -3045,6 +3061,18 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, ProjectionStoreService
               break;
             }
             case "provider-turn.updated": {
+              const spentBefore = (yield* sql<{
+                readonly thread_id: string;
+                readonly usage_json: string | null;
+                readonly model: string | null;
+              }>`
+                SELECT
+                  thread_id,
+                  json_extract(payload_json, '$.turnTokenUsage') AS usage_json,
+                  json_extract(payload_json, '$.model') AS model
+                FROM orchestration_v2_projection_provider_turns
+                WHERE provider_turn_id = ${event.payload.id}
+              `)[0];
               const existingRows =
                 event.payload.tokenUsage === undefined
                   ? yield* sql<PayloadRow>`
@@ -3101,6 +3129,22 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, ProjectionStoreService
                 completed_at = excluded.completed_at,
                 payload_json = excluded.payload_json
             `;
+              yield* applyTurnSpend(sql, {
+                before:
+                  spentBefore === undefined || spentBefore.usage_json === null
+                    ? null
+                    : {
+                        threadId: spentBefore.thread_id,
+                        spend: turnSpend(
+                          yield* decodeStoredTurnUsage(spentBefore.usage_json).pipe(Effect.orDie),
+                          spentBefore.model ?? undefined,
+                        ),
+                      },
+                after: {
+                  threadId: event.threadId,
+                  spend: turnSpend(providerTurn.turnTokenUsage, providerTurn.model),
+                },
+              });
               break;
             }
             case "runtime-request.updated": {
@@ -8686,8 +8730,14 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, ProjectionStoreService
                 WHERE plan.thread_id = t.thread_id
                   AND plan.kind = 'proposed_plan'
                   AND plan.status = 'active'
-              ) AS has_actionable_proposed_plan
+              ) AS has_actionable_proposed_plan,
+              tokens.self_tokens AS token_self,
+              tokens.delegated_tokens AS token_delegated,
+              tokens.delegated_threads AS token_delegated_threads,
+              tokens.cached_tokens AS token_cached,
+              tokens.models_json AS token_models_json
             FROM orchestration_v2_projection_threads t
+            LEFT JOIN ${sql(TOKEN_TOTALS_TABLE)} tokens ON tokens.thread_id = t.thread_id
             LEFT JOIN orchestration_v2_projection_runs active ON active.run_id = (
               SELECT r.run_id
               FROM orchestration_v2_projection_runs r
@@ -9446,6 +9496,16 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, ProjectionStoreService
               : DateTime.makeUnsafe(row.latest_user_message_at),
           latestUserAuthoredMessageAt,
           hasActionableProposedPlan: row.has_actionable_proposed_plan === 1,
+          tokenTotals:
+            row.token_self === null || row.token_models_json === null
+              ? null
+              : yield* tokenTotalsFromRow({
+                  self_tokens: row.token_self,
+                  delegated_tokens: row.token_delegated ?? 0,
+                  delegated_threads: row.token_delegated_threads ?? 0,
+                  cached_tokens: row.token_cached ?? 0,
+                  models_json: row.token_models_json,
+                }).pipe(Effect.orDie),
           pendingBackgroundTasks,
           providerInstanceHistory: providerInstanceHistoryForShell({
             threadId: thread.id,

@@ -1,5 +1,6 @@
 import { type EnvironmentId, type WorkflowRunSubject } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages } from "gt-react";
+import { formatTokens } from "@t3tools/shared/usageFormat";
 import { WorkflowIcon } from "lucide-react";
 import * as Schema from "effect/Schema";
 import { useState, type ReactNode } from "react";
@@ -101,9 +102,16 @@ export function WorkflowRunsView({
   readonly onSelect: (runId: string | null) => void;
   readonly onOpenThread: (runId: string, thread: WorkflowThreadTarget) => void;
   readonly onOpenReference: (runId: string, reference: WorkflowRunSubject) => void;
-  readonly onOpenDefinitions: () => void;
+  /** All the definition files, or `file` in the editor. */
+  readonly onOpenDefinitions: (file: string | null) => void;
 }) {
   const live = useEnvironmentQuery(serverEnvironment.workflowsLive({ environmentId, input: {} }));
+  const runTokens = useEnvironmentQuery(
+    serverEnvironment.workflowRunTokenTotals({
+      environmentId,
+      input: { runIds: (live.data?.runs ?? []).map((run) => run.runId).toSorted() },
+    }),
+  ).data;
   const [pickedTab, setPickedTab] = useState<WorkflowListTab | null>(null);
   const [workflow, setWorkflow] = useState(EVERY_WORKFLOW);
   const [pickedKind, setPickedKind] = useLocalStorage(QUESTION_KIND_KEY, EVERY_KIND, Schema.String);
@@ -136,7 +144,7 @@ export function WorkflowRunsView({
             The last version that did keeps running.
           </T>
         </span>
-        <Button size="xs" variant="outline" onClick={onOpenDefinitions}>
+        <Button size="xs" variant="outline" onClick={() => onOpenDefinitions(null)}>
           <T>Open the file</T>
         </Button>
       </div>
@@ -182,7 +190,7 @@ export function WorkflowRunsView({
             <button
               type="button"
               className="underline underline-offset-2 hover:text-foreground"
-              onClick={onOpenDefinitions}
+              onClick={() => onOpenDefinitions(null)}
             >
               Definitions
             </button>
@@ -411,6 +419,7 @@ export function WorkflowRunsView({
                       }
                       onSelect={openListed}
                       onOpenSubject={(subject) => onOpenReference(node.run.runId, subject)}
+                      tokens={runTokens?.[node.run.runId]}
                     />
                   ))}
                 </ul>
@@ -447,6 +456,7 @@ export function WorkflowRunsView({
               onSelect={onSelect}
               onOpenThread={(thread) => onOpenThread(shown.run.runId, thread)}
               onOpenReference={(reference) => onOpenReference(shown.run.runId, reference)}
+              onOpenDefinition={onOpenDefinitions}
             />
           )}
         </ScrollArea>
@@ -470,6 +480,7 @@ function WorkflowRunListItem({
   subjectOpen,
   onSelect,
   onOpenSubject,
+  tokens,
 }: {
   readonly node: WorkflowRunNode;
   readonly current: boolean;
@@ -477,6 +488,8 @@ function WorkflowRunListItem({
   readonly subjectOpen: boolean;
   readonly onSelect: (runId: string | null) => void;
   readonly onOpenSubject: (subject: WorkflowRunSubject) => void;
+  /** What the run spent so far; absent until it spends. */
+  readonly tokens: number | undefined;
 }) {
   const { run } = node;
   const about = run.subject;
@@ -500,6 +513,9 @@ function WorkflowRunListItem({
         <span className="truncate text-sm text-foreground">{run.title}</span>
         <span className="flex min-w-0 gap-1.5 text-xs text-muted-foreground">
           <span className="min-w-0 flex-1 truncate">{workflowRunNow(node, m)}</span>
+          {tokens === undefined ? null : (
+            <span className="shrink-0 tabular-nums">{formatTokens(tokens)}</span>
+          )}
           <span className="shrink-0">
             <RelativeLabel value={run.updatedAt} />
           </span>

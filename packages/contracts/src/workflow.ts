@@ -306,13 +306,40 @@ export const WorkflowReferenceKind = {
 export const WorkflowIssueAddress = IssueRef;
 export const WorkflowPullRequestAddress = PullRequestRef;
 
+/**
+ * What a run's agents spent, the threads they delegated to included. A turn counts once even when
+ * several steps share its thread. Tokens land when a turn ends.
+ */
+export const WorkflowRunTokens = Schema.Struct({
+  total: Schema.Number,
+  /** Input tokens read from the provider's cache, a part of `total`. */
+  cachedTokens: Schema.Number,
+  /** Biggest first, with how many steps used each model. */
+  byModel: Schema.Array(
+    Schema.Struct({ model: Schema.String, tokens: Schema.Number, steps: Schema.Number }),
+  ),
+  /** By step name; a step that spent nothing is absent. */
+  byStep: Schema.Record(Schema.String, Schema.Number),
+});
+export type WorkflowRunTokens = typeof WorkflowRunTokens.Type;
+
 /** One run with its steps, in the order they started, and what it touched. */
 export const WorkflowRunDetail = Schema.Struct({
   run: WorkflowRun,
   steps: Schema.Array(WorkflowStep),
   references: Schema.Array(WorkflowRunReference),
+  tokens: Schema.optional(WorkflowRunTokens),
 });
 export type WorkflowRunDetail = typeof WorkflowRunDetail.Type;
+
+/** The runs a list shows, to total what each spent. */
+export const WorkflowRunTokenTotalsInput = Schema.Struct({
+  runIds: Schema.Array(Schema.String).check(Schema.isMaxLength(500)),
+});
+export type WorkflowRunTokenTotalsInput = typeof WorkflowRunTokenTotalsInput.Type;
+/** Tokens by run id; a run that spent nothing is absent. */
+export const WorkflowRunTokenTotals = Schema.Record(Schema.String, Schema.Number);
+export type WorkflowRunTokenTotals = typeof WorkflowRunTokenTotals.Type;
 
 /** A person's answer to a `WorkflowQuestion`: one of its choices and, if they gave one, why. */
 export const WorkflowAnswerInput = Schema.Struct({

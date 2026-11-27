@@ -529,7 +529,12 @@ export type ShellApplicationEvent =
   | {
       readonly sequence: number;
       readonly event: Pick<OrchestrationV2StoredEvent["event"], "threadId">;
+      /** A turn reported its usage, which changes the totals its delegating threads show. */
+      readonly spent?: true;
     };
+
+const reportsSpend = (event: OrchestrationV2StoredEvent["event"]) =>
+  event.type === "provider-turn.updated" && event.payload.turnTokenUsage !== undefined;
 
 /** Focused subagents receive these updates through their thread subscription. */
 export function shouldPublishShellApplicationEvent(
@@ -551,6 +556,7 @@ export function shouldPublishShellApplicationEvent(
   if (event.type === "turn-item.updated" && turnItemCanChangeUserWait(event.payload)) {
     return true;
   }
+  if (reportsSpend(event)) return true;
   return !(
     subagentThreadIds.has(event.threadId) &&
     (event.type === "node.updated" ||
@@ -569,7 +575,11 @@ export function toShellApplicationEvent(stored: ApplicationStoredEvent): ShellAp
         type: stored.type,
         sequence: stored.sequence,
       }
-    : { sequence: stored.sequence, event: { threadId: stored.event.threadId } };
+    : {
+        sequence: stored.sequence,
+        event: { threadId: stored.event.threadId },
+        ...(reportsSpend(stored.event) ? { spent: true as const } : {}),
+      };
 }
 
 export function coalesceShellApplicationEvents<A extends ShellApplicationEvent>(

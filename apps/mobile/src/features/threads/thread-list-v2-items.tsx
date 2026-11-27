@@ -31,6 +31,7 @@ import {
   type EnvironmentMachineKind,
 } from "@t3tools/contracts";
 import { toServerClock } from "@t3tools/client-runtime/clock";
+import { formatTokens } from "@t3tools/shared/usageFormat";
 import type { SnoozePresetSetting } from "@t3tools/contracts/settings";
 import { canSnooze } from "@t3tools/client-runtime/state/thread-settled";
 import { threadChipCopyTarget } from "@t3tools/client-runtime/thread-reference";
@@ -1629,6 +1630,18 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
               </Text>
             ) : null}
           </View>
+        ) : null}
+        {thread.tokenTotals ? (
+          <Text
+            className={cn(
+              "text-xs tabular-nums",
+              selected
+                ? selectedThreadRowColors.mutedForegroundClassName
+                : rowAppearance.tertiaryForegroundClassName,
+            )}
+          >
+            {formatTokens(thread.tokenTotals.selfTokens + thread.tokenTotals.delegatedTokens)}
+          </Text>
         ) : null}
       </View>
     </>
