@@ -154,7 +154,7 @@ def translated_highlights(output, expected_count):
 
 
 def select_changes(changes):
-    return sorted(dict.fromkeys(changes), key=lambda subject: not subject.startswith("feat("))[:7]
+    return sorted(dict.fromkeys(changes), key=lambda subject: not re.match(r"feat[(:!]", subject))[:7]
 
 
 def translation_sources(changes, official):
@@ -168,20 +168,37 @@ def translation_sources(changes, official):
     ]
 
 
-def format_highlights(highlights, expected_count):
-    if not isinstance(highlights, list) or len(highlights) != expected_count or len(highlights) > 7 or any(
-        not isinstance(line, str)
-        or not 10 <= len(line) <= 220
-        or re.search(r"[\r\n<>`{}]|https?://|\b[0-9a-f]{7,40}\b|#\d+|(?:upstream-main|arbre):", line)
-        or not re.match(r"(?:(?:Vous|Le|La|Les|Un|Une|Des)\s|L[’'])", line)
-        or re.search(
+def valid_highlight(line):
+    return (
+        isinstance(line, str)
+        and 10 <= len(line) <= 220
+        and not re.search(r"[\r\n<>`{}]|https?://|\b[0-9a-f]{7,40}\b|#\d+|(?:upstream-main|arbre):", line)
+        and re.match(r"(?:(?:Vous|Le|La|Les|Un|Une|Des)\s|L[’'])", line) is not None
+        and not re.search(
             r"\b(?:fix|feat|chore|refactor|keep|keeps|with|after|before|when|preserve)\b",
             line, re.IGNORECASE,
         )
-        for line in highlights
-    ) or len(set(highlights)) != len(highlights):
+    )
+
+
+def format_highlights(highlights, expected_count):
+    if (
+        not isinstance(highlights, list)
+        or len(highlights) != expected_count
+        or len(highlights) > 7
+        # Repeated lines mean the model merged sources, so no line can be trusted to match one.
+        or len(set(map(str, highlights))) != len(highlights)
+    ):
         raise ValueError("The generated highlights have an invalid update-note format")
-    return "\n".join(f"- {line.strip()}" for line in highlights) or NO_CHANGES
+    # One malformed line used to discard the whole note; each line translates one source, so the
+    # others stay accurate on their own and the folded changelog still lists the dropped change.
+    kept = [line.strip() for line in highlights if valid_highlight(line)]
+    for line in highlights:
+        if not valid_highlight(line):
+            print(f"::notice::Dropped a release-note line: {json.dumps(line, ensure_ascii=False)}", file=sys.stderr)
+    if highlights and not kept:
+        raise ValueError("No generated highlight has a valid update-note format")
+    return "\n".join(f"- {line}" for line in kept) or NO_CHANGES
 
 
 def main():

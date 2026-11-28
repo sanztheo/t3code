@@ -50,6 +50,14 @@ class ReleaseNotesTest(unittest.TestCase):
             "- Vous pouvez copier un tableau en image.",
         )
 
+    def test_one_rejected_line_no_longer_discards_the_valid_ones(self):
+        self.assertEqual(
+            notes.translated_highlights(
+                '["Vous pouvez copier un tableau en image.", "Les fichiers keep their names."]', 2
+            ),
+            "- Vous pouvez copier un tableau en image.",
+        )
+
     def test_translation_sources_have_no_commit_wrapper_or_example(self):
         self.assertEqual(
             notes.translation_sources(["fix(web): keep numbered lists (#44318)"], ""),
