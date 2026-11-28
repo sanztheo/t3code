@@ -332,9 +332,11 @@ export const WorkflowRunDetail = Schema.Struct({
 });
 export type WorkflowRunDetail = typeof WorkflowRunDetail.Type;
 
+/** How many runs one totals read covers; a longer list totals its most recent runs. */
+export const WORKFLOW_RUN_TOKEN_TOTALS_MAX = 500;
 /** The runs a list shows, to total what each spent. */
 export const WorkflowRunTokenTotalsInput = Schema.Struct({
-  runIds: Schema.Array(Schema.String).check(Schema.isMaxLength(500)),
+  runIds: Schema.Array(Schema.String).check(Schema.isMaxLength(WORKFLOW_RUN_TOKEN_TOTALS_MAX)),
 });
 export type WorkflowRunTokenTotalsInput = typeof WorkflowRunTokenTotalsInput.Type;
 /** Tokens by run id; a run that spent nothing is absent. */

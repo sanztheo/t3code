@@ -231,7 +231,9 @@ export function applyShellStreamEvents(
   const archivedThreads = batchRows(snapshot.archivedThreads);
   let sequence = snapshot.snapshotSequence;
   for (const event of events) {
-    if (event.sequence <= sequence) continue;
+    // One batch can carry several rows at the same sequence, such as the threads above one whose
+    // spend changed; all of them apply, while anything the snapshot already holds stays stale.
+    if (event.sequence <= snapshot.snapshotSequence || event.sequence < sequence) continue;
     switch (event.kind) {
       case "project.updated":
         projects.set(retainRepositoryIdentity(projects.get(event.project.id), event.project));

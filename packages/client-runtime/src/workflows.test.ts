@@ -14,6 +14,7 @@ import {
   defaultWorkflowListTab,
   defaultWorkflowRunId,
   groupWorkflowRuns,
+  isWorkflowRunWorkingAgain,
   listedWorkflowRuns,
   readWorkflowQuestion,
   workflowAgentSummary,
@@ -175,6 +176,23 @@ describe("groupWorkflowRuns", () => {
       );
     expect(running()).toEqual([]);
     expect(running(new Set(["relaunched"]))).toEqual(["relaunched"]);
+  });
+
+  it("keeps the parent under way while a sub-workflow's relaunched agent works", () => {
+    const runs = [
+      run("parent", { status: "completed", endedAt: at(2), updatedAt: at(2) }),
+      run("child", {
+        status: "completed",
+        parentRunId: "parent",
+        endedAt: at(2),
+        updatedAt: at(2),
+      }),
+    ];
+    const groups = groupWorkflowRuns(registered, runs, [], new Set(["child"]));
+    expect(workflowRunLists(groups).running.map((node) => node.run.runId)).toEqual(["parent"]);
+    expect(isWorkflowRunWorkingAgain(allWorkflowRunNodes(groups)[0]!, new Set(["child"]))).toBe(
+      true,
+    );
   });
 });
 

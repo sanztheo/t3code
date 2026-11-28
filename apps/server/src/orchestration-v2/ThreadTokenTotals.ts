@@ -10,8 +10,21 @@ import type * as SqlClient from "effect/sql/SqlClient";
  */
 export const TOKEN_TOTALS_TABLE = "orchestration_v2_projection_thread_token_totals";
 
+/** The provider turn rows the totals have counted, so a start can tell when another build wrote some. */
+const SEEN_TURNS_TABLE = `${TOKEN_TOTALS_TABLE}_seen`;
+
 /** Lineage is shallow; the bound only stops a corrupted parent cycle. */
 const MAX_LINEAGE_DEPTH = 64;
+
+/**
+ * The thread a thread's spend rolls up to, over a thread row aliased `alias`. Subagents and side
+ * chats live in their parent's view; a fork is listed on its own and keeps its spend.
+ */
+export const delegatingParentSql = (alias: string) => `CASE
+  WHEN json_extract(${alias}.payload_json, '$.lineage.relationshipToParent') = 'subagent'
+    OR json_extract(${alias}.payload_json, '$.lineage.sideChat') = 1
+  THEN json_extract(${alias}.payload_json, '$.lineage.parentThreadId')
+END`;
 
 const UNKNOWN_MODEL = "unknown";
 
@@ -153,11 +166,11 @@ export const ancestorThreadIds = Effect.fn("ThreadTokenTotals.ancestorThreadIds"
   if (threadIds.length === 0) return [];
   const rows = yield* sql<{ readonly thread_id: string }>`
     WITH RECURSIVE chain(thread_id, depth) AS (
-      SELECT json_extract(payload_json, '$.lineage.parentThreadId'), 1
-      FROM orchestration_v2_projection_threads
-      WHERE ${sql.in("thread_id", threadIds)}
+      SELECT ${sql.literal(delegatingParentSql("t"))}, 1
+      FROM orchestration_v2_projection_threads t
+      WHERE ${sql.in("t.thread_id", threadIds)}
       UNION
-      SELECT json_extract(t.payload_json, '$.lineage.parentThreadId'), chain.depth + 1
+      SELECT ${sql.literal(delegatingParentSql("t"))}, chain.depth + 1
       FROM orchestration_v2_projection_threads t
       JOIN chain ON t.thread_id = chain.thread_id
       WHERE chain.depth < ${MAX_LINEAGE_DEPTH}
@@ -242,17 +255,24 @@ export const applyTurnSpend = Effect.fn("ThreadTokenTotals.applyTurnSpend")(func
 export const clearTokenTotals = (sql: SqlClient.SqlClient) =>
   sql`DELETE FROM ${sql(TOKEN_TOTALS_TABLE)}`;
 
+/** Records that the totals counted this provider turn's row. */
+export const markTurnCounted = (sql: SqlClient.SqlClient, providerTurnId: string) =>
+  sql`
+    UPDATE ${sql(SEEN_TURNS_TABLE)}
+    SET turn_rowid = MAX(turn_rowid, COALESCE((
+      SELECT rowid FROM orchestration_v2_projection_provider_turns
+      WHERE provider_turn_id = ${providerTurnId}
+    ), 0))
+  `;
+
 /**
- * Creates the table, and fills it from the turns already projected the first time. Later turns
- * keep it current through `applyTurnSpend`.
+ * Creates the tables and fills them from the turns already projected. A later start refills them
+ * only when provider turns appeared that the totals never counted, such as turns an older build,
+ * which lacks this patch, projected on the same database.
  */
 export const ensureTokenTotals = Effect.fn("ThreadTokenTotals.ensure")(function* (
   sql: SqlClient.SqlClient,
 ) {
-  const existing = yield* sql`
-    SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ${TOKEN_TOTALS_TABLE}
-  `;
-  if (existing.length > 0) return;
   const projected = yield* sql`
     SELECT 1 FROM sqlite_schema
     WHERE type = 'table' AND name = 'orchestration_v2_projection_provider_turns'
@@ -269,7 +289,23 @@ export const ensureTokenTotals = Effect.fn("ThreadTokenTotals.ensure")(function*
           models_json TEXT NOT NULL DEFAULT '{}'
         )
       `;
+      yield* sql`
+        CREATE TABLE IF NOT EXISTS ${sql(SEEN_TURNS_TABLE)} (turn_rowid INTEGER NOT NULL)
+      `;
+      const latest =
+        projected.length === 0
+          ? 0
+          : ((yield* sql<{ readonly rowid: number | null }>`
+              SELECT MAX(rowid) AS rowid FROM orchestration_v2_projection_provider_turns
+            `)[0]?.rowid ?? 0);
+      const seen = (yield* sql<{ readonly turn_rowid: number }>`
+        SELECT turn_rowid FROM ${sql(SEEN_TURNS_TABLE)}
+      `)[0];
+      if (seen?.turn_rowid === latest) return;
+      yield* clearTokenTotals(sql);
       if (projected.length > 0) yield* backfill(sql);
+      yield* sql`DELETE FROM ${sql(SEEN_TURNS_TABLE)}`;
+      yield* sql`INSERT INTO ${sql(SEEN_TURNS_TABLE)} (turn_rowid) VALUES (${latest})`;
     }),
   );
 });
@@ -299,9 +335,10 @@ const backfill = Effect.fn("ThreadTokenTotals.backfill")(function* (sql: SqlClie
   if (spends.length === 0) return;
   const parents = new Map(
     (yield* sql<{ readonly thread_id: string; readonly parent_id: string }>`
-      SELECT thread_id, json_extract(payload_json, '$.lineage.parentThreadId') AS parent_id
-      FROM orchestration_v2_projection_threads
-      WHERE json_extract(payload_json, '$.lineage.parentThreadId') IS NOT NULL
+      SELECT * FROM (
+        SELECT t.thread_id, ${sql.literal(delegatingParentSql("t"))} AS parent_id
+        FROM orchestration_v2_projection_threads t
+      ) WHERE parent_id IS NOT NULL
     `).map((row) => [row.thread_id, row.parent_id] as const),
   );
   const ancestorsOf = (threadId: string) => {

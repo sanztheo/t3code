@@ -1,5 +1,9 @@
 import { useAtomValue } from "@effect/atom-react";
-import { type EnvironmentId, type WorkflowRunSubject } from "@t3tools/contracts";
+import {
+  type EnvironmentId,
+  WORKFLOW_RUN_TOKEN_TOTALS_MAX,
+  type WorkflowRunSubject,
+} from "@t3tools/contracts";
 import { msg, T, useGT, useMessages } from "gt-react";
 import { formatTokens } from "@t3tools/shared/usageFormat";
 import { WorkflowIcon } from "lucide-react";
@@ -30,6 +34,7 @@ import {
   defaultWorkflowListTab,
   defaultWorkflowRunId,
   groupWorkflowRuns,
+  isWorkflowRunWorkingAgain,
   listedWorkflowRuns,
   workflowQuestionKinds,
   workflowReferenceThreadId,
@@ -111,7 +116,13 @@ export function WorkflowRunsView({
   const runTokens = useEnvironmentQuery(
     serverEnvironment.workflowRunTokenTotals({
       environmentId,
-      input: { runIds: (live.data?.runs ?? []).map((run) => run.runId).toSorted() },
+      input: {
+        runIds: (live.data?.runs ?? [])
+          .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+          .slice(0, WORKFLOW_RUN_TOKEN_TOTALS_MAX)
+          .map((run) => run.runId)
+          .toSorted(),
+      },
     }),
   ).data;
   const workingRunIds = useAtomValue(
@@ -430,7 +441,7 @@ export function WorkflowRunsView({
                       onSelect={openListed}
                       onOpenSubject={(subject) => onOpenReference(node.run.runId, subject)}
                       tokens={runTokens?.[node.run.runId]}
-                      workingAgain={node.run.endedAt !== null && workingRunIds.has(node.run.runId)}
+                      workingAgain={isWorkflowRunWorkingAgain(node, workingRunIds)}
                     />
                   ))}
                 </ul>
