@@ -420,6 +420,14 @@ describe("applyShellStreamEvents", () => {
     expect(applyShellStreamEvents(next, [update(11, { ...a, title: "child spent" })])).toBe(next);
   });
 
+  it("removes an archived parent whose row the live buffer delivered apart", () => {
+    const seed = { ...v2ShellSnapshot, threads: [a, b], snapshotSequence: 10 };
+    const child = applyShellStreamEvent(seed, update(13, { ...a, title: "child spent" }));
+    expect(applyShellStreamEvent(child, remove(13, b)).threads.map((thread) => thread.id)).toEqual([
+      a.id,
+    ]);
+  });
+
   it("applies a row at the held sequence that the live buffer delivered apart", () => {
     const seed = { ...v2ShellSnapshot, threads: [a, b], snapshotSequence: 10 };
     const child = applyShellStreamEvent(seed, update(11, { ...a, title: "child spent" }));

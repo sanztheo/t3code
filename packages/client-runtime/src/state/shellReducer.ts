@@ -132,10 +132,12 @@ export function mergeShellSnapshotProjects(
 /**
  * Several thread rows can share one sequence, such as the threads above one whose spend changed,
  * and the live buffer may deliver them apart. A thread row holds the shell read at or after its
- * sequence, so one at the held sequence still applies; any other event there is already held.
+ * sequence and a removal repeats harmlessly, so either still applies at the held sequence; any
+ * other event there is already held.
  */
 const isStale = (event: ShellStreamEvent, sequence: number) =>
-  event.kind === "thread.updated" && event.location === "active"
+  (event.kind === "thread.updated" && event.location === "active") ||
+  event.kind === "thread.removed"
     ? event.sequence < sequence
     : event.sequence <= sequence;
 
