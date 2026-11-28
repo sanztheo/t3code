@@ -450,6 +450,8 @@ import {
   WorkflowRunDetail,
   WorkflowRunGetInput,
   WorkflowRunResumeInput,
+  WorkflowRunTokenTotals,
+  WorkflowRunTokenTotalsInput,
   WorkflowRunsAbout,
   WorkflowRunsAboutInput,
   WorkflowCounts,
@@ -661,6 +663,7 @@ export const WS_METHODS = {
   workflowsSubscribe: "workflows.subscribe",
   workflowsCounts: "workflows.counts",
   workflowsGet: "workflows.get",
+  workflowsTokenTotals: "workflows.tokenTotals",
   workflowsAbout: "workflows.about",
   workflowsAnswer: "workflows.answer",
   workflowsResume: "workflows.resume",
@@ -2398,6 +2401,12 @@ const WsWorkflowsGetRpc = Rpc.make(WS_METHODS.workflowsGet, {
   error: Schema.Union([WorkflowRequestError, EnvironmentAuthorizationError]),
 });
 
+const WsWorkflowsTokenTotalsRpc = Rpc.make(WS_METHODS.workflowsTokenTotals, {
+  payload: WorkflowRunTokenTotalsInput,
+  success: WorkflowRunTokenTotals,
+  error: EnvironmentAuthorizationError,
+});
+
 const WsWorkflowsAboutRpc = Rpc.make(WS_METHODS.workflowsAbout, {
   payload: WorkflowRunsAboutInput,
   success: WorkflowRunsAbout,
@@ -2617,6 +2626,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsWorkflowsSubscribeRpc,
   WsWorkflowsCountsRpc,
   WsWorkflowsGetRpc,
+  WsWorkflowsTokenTotalsRpc,
   WsWorkflowsAboutRpc,
   WsWorkflowsAnswerRpc,
   WsWorkflowsResumeRpc,

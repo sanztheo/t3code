@@ -12606,6 +12606,7 @@
   "614e5ad58a795fb5": "Stoppen",
   "04b050b0329f0ac8": "dauerte {duration}",
   "aff78e1774818ff4": "bisher {duration}",
+  "ddbb5d2bdc572774": "Bisher {tokens} Tokens",
   "38eddd466439afc9": "Was die Ausführung berührt hat",
   "156ec271d49ddd70": "Was passiert ist",
   "34f59bbbead0b97f": "{names} und {count} weitere",
@@ -12656,6 +12657,7 @@
     }
   ],
   "8bffb377e2a6a7de": "ihre Version ist nicht mehr registriert",
+  "584a1023bdbd0dfd": "Definition",
   "f92d9132f7b85d1a": "Schritte werden geladen…",
   "6ebc59f64c761a49": "Noch nichts.",
   "a759dccd157d7dae": [
@@ -13052,6 +13054,7 @@
   ],
   "91aadfc843c600de": "Google-Konto bestätigen",
   "201490988858b511": "zurückgezogen von {by}",
+  "43aeffb7e3aa5337": "{count, plural, one {{count} Schritt} other {{count} Schritte}}",
   "99451a5d2d40440f": "Zurückgezogen von {by}.",
   "3ee30a50b70fffab": "Zurückgezogen von {by}: {reason}",
   "92e129bf413a1220": "zurückgezogen",

@@ -12613,6 +12613,7 @@
   "614e5ad58a795fb5": "Stop",
   "04b050b0329f0ac8": "took {duration}",
   "aff78e1774818ff4": "{duration} so far",
+  "ddbb5d2bdc572774": "{tokens} tokens so far",
   "38eddd466439afc9": "What the run touched",
   "156ec271d49ddd70": "What happened",
   "34f59bbbead0b97f": "{names} and {count} more",
@@ -12663,6 +12664,7 @@
     }
   ],
   "8bffb377e2a6a7de": "its version is no longer registered",
+  "584a1023bdbd0dfd": "Definition",
   "f92d9132f7b85d1a": "Loading steps…",
   "6ebc59f64c761a49": "Nothing yet.",
   "a759dccd157d7dae": [
@@ -13060,6 +13062,7 @@
   ],
   "91aadfc843c600de": "Verify Google account",
   "201490988858b511": "withdrawn by {by}",
+  "43aeffb7e3aa5337": "{count, plural, one {{count} step} other {{count} steps}}",
   "99451a5d2d40440f": "Withdrawn by {by}.",
   "3ee30a50b70fffab": "Withdrawn by {by}: {reason}",
   "92e129bf413a1220": "withdrawn",

@@ -12627,6 +12627,7 @@
   "614e5ad58a795fb5": "停止",
   "04b050b0329f0ac8": "用时 {duration}",
   "aff78e1774818ff4": "已用时 {duration}",
+  "ddbb5d2bdc572774": "目前 {tokens} 个 token",
   "38eddd466439afc9": "此运行涉及的内容",
   "156ec271d49ddd70": "经过",
   "34f59bbbead0b97f": "{names} 等另外 {count} 个",
@@ -12676,6 +12677,7 @@
     "开始"
   ],
   "8bffb377e2a6a7de": "其版本已不再注册",
+  "584a1023bdbd0dfd": "定义",
   "f92d9132f7b85d1a": "正在加载步骤…",
   "6ebc59f64c761a49": "暂无内容。",
   "a759dccd157d7dae": [
@@ -13066,6 +13068,7 @@
   ],
   "91aadfc843c600de": "验证 Google 账户",
   "201490988858b511": "已由 {by} 撤回",
+  "43aeffb7e3aa5337": "{count, plural, other {{count} 个步骤}}",
   "99451a5d2d40440f": "已由 {by} 撤回。",
   "3ee30a50b70fffab": "已由 {by} 撤回：{reason}",
   "92e129bf413a1220": "已撤回",

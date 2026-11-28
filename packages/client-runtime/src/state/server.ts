@@ -1698,6 +1698,21 @@ export function createServerEnvironmentAtoms<R, E>(
       },
       isFinal: (detail) => detail.run.endedAt !== null,
     }),
+    // One read for the listed runs, again whenever one of them moves on.
+    workflowRunTokenTotals: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:workflows:token-totals",
+      tag: WS_METHODS.workflowsTokenTotals,
+      refreshTrigger: ({ environmentId, input }) => {
+        const snapshot = liveWorkflowSnapshot(environmentId);
+        const listed = new Set(input.runIds);
+        return Atom.make((get) =>
+          snapshot(get)
+            ?.runs.filter((run) => listed.has(run.runId))
+            .map((run) => run.updatedAt)
+            .join(),
+        );
+      },
+    }),
     // Read when an item's view opens: the live list holds only the newest runs of every subject.
     workflowRunsAbout: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:workflows:about",

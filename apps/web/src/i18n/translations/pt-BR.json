@@ -12604,6 +12604,7 @@
   "614e5ad58a795fb5": "Parar",
   "04b050b0329f0ac8": "levou {duration}",
   "aff78e1774818ff4": "{duration} até agora",
+  "ddbb5d2bdc572774": "{tokens} tokens até agora",
   "38eddd466439afc9": "O que a execução tocou",
   "156ec271d49ddd70": "O que aconteceu",
   "34f59bbbead0b97f": "{names} e mais {count}",
@@ -12654,6 +12655,7 @@
     }
   ],
   "8bffb377e2a6a7de": "sua versão não está mais registrada",
+  "584a1023bdbd0dfd": "Definição",
   "f92d9132f7b85d1a": "Carregando etapas…",
   "6ebc59f64c761a49": "Nada ainda.",
   "a759dccd157d7dae": [
@@ -13052,6 +13054,7 @@
   ],
   "91aadfc843c600de": "Verificar conta Google",
   "201490988858b511": "retirada por {by}",
+  "43aeffb7e3aa5337": "{count, plural, one {{count} etapa} other {{count} etapas}}",
   "99451a5d2d40440f": "Retirada por {by}.",
   "3ee30a50b70fffab": "Retirada por {by}: {reason}",
   "92e129bf413a1220": "retirada",
