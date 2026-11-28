@@ -582,6 +582,25 @@ export function toShellApplicationEvent(stored: ApplicationStoredEvent): ShellAp
       };
 }
 
+/**
+ * A delegated thread's spend changes the totals of every thread above it, so those threads refresh
+ * too. The refreshed shell is current, so it may carry the batch's last sequence; a thread with its
+ * own event here keeps that event's sequence, so its removal never trails a later row.
+ */
+export function withDelegatingThreadRefreshes(
+  events: ReadonlyArray<ShellApplicationEvent>,
+  delegatingThreadIds: ReadonlyArray<ThreadId>,
+): ReadonlyArray<ShellApplicationEvent> {
+  const ownThreads = new Set(
+    events.flatMap((stored) => ("aggregateKind" in stored ? [] : [stored.event.threadId])),
+  );
+  const sequence = Math.max(0, ...events.map((stored) => stored.sequence));
+  const refreshes = delegatingThreadIds
+    .filter((threadId) => !ownThreads.has(threadId))
+    .map((threadId) => ({ sequence, event: { threadId } }));
+  return coalesceShellApplicationEvents([...events, ...refreshes]);
+}
+
 export function coalesceShellApplicationEvents<A extends ShellApplicationEvent>(
   events: ReadonlyArray<A>,
 ): ReadonlyArray<A> {

@@ -116,7 +116,18 @@ const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
       AND json_type(p.payload_json, '$.turnTokenUsage') IS NOT NULL
   `;
   const turnsByThread = Map.groupBy(turns, (turn) => turn.thread_id);
-  const windowOf = (step: AgentStep) => ({
+  const retriedThreadIds = [
+    ...new Set(steps.flatMap((step) => (step.attempts > 1 ? [step.thread_id] : []))),
+  ];
+  // Another run's steps can use the thread too; their windows are never a retry's earlier attempt.
+  const threadWindows =
+    retriedThreadIds.length === 0
+      ? []
+      : yield* sql<Pick<AgentStep, "run_id" | "thread_id" | "started_at" | "ended_at">>`
+          SELECT run_id, thread_id, started_at, ended_at FROM workflow_steps
+          WHERE ${sql.in("thread_id", retriedThreadIds)}
+        `;
+  const windowOf = (step: Pick<AgentStep, "started_at" | "ended_at">) => ({
     from: Date.parse(step.started_at),
     until: step.ended_at === null ? Number.POSITIVE_INFINITY : Date.parse(step.ended_at),
   });
@@ -128,10 +139,13 @@ const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
   // Earlier attempts left no window. A turn no step's window holds belongs to the first retried
   // step on that thread whose last attempt began after it.
   const ownsUnwindowedTurn = (step: AgentStep, at: number) => {
+    const holds = (other: Pick<AgentStep, "started_at" | "ended_at">) =>
+      at >= windowOf(other).from && at < windowOf(other).until;
     const siblings = siblingsOf(step);
-    if (siblings.some((other) => at >= windowOf(other).from && at < windowOf(other).until)) {
-      return false;
-    }
+    const otherRuns = threadWindows.filter(
+      (other) => other.thread_id === step.thread_id && other.run_id !== step.run_id,
+    );
+    if (siblings.some(holds) || otherRuns.some(holds)) return false;
     return !siblings.some(
       (other) =>
         other.attempts > 1 &&
