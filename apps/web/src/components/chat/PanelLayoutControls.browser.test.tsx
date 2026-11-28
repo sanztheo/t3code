@@ -14,6 +14,7 @@ function controls(placement: "window" | "pane") {
       rightPanelOpen={false}
       animationsActive={false}
       maximized={false}
+      maximizeShortcutLabel={null}
       onToggleMaximized={() => {}}
     >
       <button type="button">Close pane</button>

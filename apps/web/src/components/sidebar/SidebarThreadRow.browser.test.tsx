@@ -110,6 +110,7 @@ function rowProps(overrides: Partial<RowProps>): RowProps {
     onUnsettle: vi.fn(),
     onSnooze: vi.fn(),
     onUnsnooze: vi.fn(),
+    onPin: vi.fn(),
     onUnpin: vi.fn(),
     onAcknowledgeWoke: vi.fn(),
     ...overrides,
