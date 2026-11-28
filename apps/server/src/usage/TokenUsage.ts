@@ -131,36 +131,30 @@ const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
     from: Date.parse(step.started_at),
     until: step.ended_at === null ? Number.POSITIVE_INFINITY : Date.parse(step.ended_at),
   });
-  const siblingsOf = (step: AgentStep) =>
-    steps.filter(
-      (other) =>
-        other !== step && other.run_id === step.run_id && other.thread_id === step.thread_id,
-    );
+  const runThreadKey = (step: Pick<AgentStep, "run_id" | "thread_id">) =>
+    `${step.run_id}\u0000${step.thread_id}`;
+  const windowsByThread = Map.groupBy(threadWindows, (window) => window.thread_id);
   // Earlier attempts left no window. A turn no step's window holds belongs to the first retried
   // step on that thread whose last attempt began after it.
-  const ownsUnwindowedTurn = (step: AgentStep, at: number) => {
-    const holds = (other: Pick<AgentStep, "started_at" | "ended_at">) =>
-      at >= windowOf(other).from && at < windowOf(other).until;
-    const siblings = siblingsOf(step);
-    const otherRuns = threadWindows.filter(
-      (other) => other.thread_id === step.thread_id && other.run_id !== step.run_id,
-    );
-    if (siblings.some(holds) || otherRuns.some(holds)) return false;
-    return !siblings.some(
-      (other) =>
-        other.attempts > 1 &&
-        at < windowOf(other).from &&
-        windowOf(other).from < windowOf(step).from,
-    );
+  const unwindowedOwner = (step: AgentStep) => {
+    const sameThread = (windowsByThread.get(step.thread_id) ?? []).map((window) => ({
+      ...window,
+      ...windowOf(window),
+    }));
+    const closerRetries = steps
+      .filter((other) => other.attempts > 1 && runThreadKey(other) === runThreadKey(step))
+      .map((other) => windowOf(other).from)
+      .filter((from) => from < windowOf(step).from);
+    return (at: number) =>
+      !sameThread.some((window) => at >= window.from && at < window.until) &&
+      !closerRetries.some((from) => at < from);
   };
   return steps.map((step) => {
     const { from, until } = windowOf(step);
+    const ownsUnwindowedTurn = step.attempts > 1 ? unwindowedOwner(step) : () => false;
+    const runStart = Date.parse(step.run_started_at);
     const ownsTurnAt = (at: number) =>
-      at < until &&
-      (at >= from ||
-        (step.attempts > 1 &&
-          at >= Date.parse(step.run_started_at) &&
-          ownsUnwindowedTurn(step, at)));
+      at < until && (at >= from || (at >= runStart && ownsUnwindowedTurn(at)));
     const stepTurns = (trees.get(step.thread_id) ?? []).flatMap((threadId) =>
       (turnsByThread.get(threadId) ?? []).filter(
         (turn) => turn.started_at !== null && ownsTurnAt(Date.parse(turn.started_at)),
