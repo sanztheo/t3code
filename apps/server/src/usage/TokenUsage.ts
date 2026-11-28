@@ -85,8 +85,8 @@ const delegationTrees = Effect.fn("TokenUsage.delegationTrees")(function* (
 /**
  * The turns each agent step of these runs spent: its thread's and its delegated threads' turns
  * that started while the step ran. A retried step keeps only its last attempt's start, so its
- * earlier attempts are counted from the run's start. Steps in a linked environment ran elsewhere
- * and are left out.
+ * earlier attempts are counted from the end of the run's previous step on that thread, or from the
+ * run's start. Steps in a linked environment ran elsewhere and are left out.
  */
 const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
   sql: SqlClient.SqlClient,
@@ -116,8 +116,23 @@ const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
       AND json_type(p.payload_json, '$.turnTokenUsage') IS NOT NULL
   `;
   const turnsByThread = Map.groupBy(turns, (turn) => turn.thread_id);
+  const firstAttemptStart = (step: AgentStep) => {
+    if (step.attempts <= 1) return Date.parse(step.started_at);
+    // Its earlier attempts began after any step of this run that used the same thread had ended.
+    const lastStart = Date.parse(step.started_at);
+    const earlierEnds = steps.flatMap((other) =>
+      other !== step &&
+      other.run_id === step.run_id &&
+      other.thread_id === step.thread_id &&
+      other.ended_at !== null &&
+      Date.parse(other.ended_at) <= lastStart
+        ? [Date.parse(other.ended_at)]
+        : [],
+    );
+    return Math.max(Date.parse(step.run_started_at), ...earlierEnds);
+  };
   return steps.map((step) => {
-    const from = Date.parse(step.attempts > 1 ? step.run_started_at : step.started_at);
+    const from = firstAttemptStart(step);
     const until = step.ended_at === null ? Number.POSITIVE_INFINITY : Date.parse(step.ended_at);
     const stepTurns = (trees.get(step.thread_id) ?? []).flatMap((threadId) =>
       (turnsByThread.get(threadId) ?? []).filter((turn) => {

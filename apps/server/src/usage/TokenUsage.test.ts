@@ -43,9 +43,10 @@ const STEPS = [
     until: "2026-11-27T10:30:00Z",
     env: null,
   },
+  // Retried too: its earlier attempts began after "plan" ended on the same thread.
   {
     run: "run-1",
-    attempts: 1,
+    attempts: 2,
     name: "review",
     thread: "lead",
     from: "2026-11-27T10:30:00Z",
