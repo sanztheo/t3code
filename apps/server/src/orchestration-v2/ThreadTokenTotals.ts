@@ -181,6 +181,25 @@ export const ancestorThreadIds = Effect.fn("ThreadTokenTotals.ancestorThreadIds"
   return rows.map((row) => row.thread_id);
 });
 
+/**
+ * The ancestors a client still shows. An archived or deleted one is out of the sidebar, and a
+ * refresh of it would only repeat its removal at a later sequence than its own.
+ */
+export const shownAncestorThreadIds = Effect.fn("ThreadTokenTotals.shownAncestorThreadIds")(
+  function* (sql: SqlClient.SqlClient, threadIds: ReadonlyArray<string>) {
+    const ancestors = yield* ancestorThreadIds(sql, threadIds);
+    if (ancestors.length === 0) return [];
+    const shown = new Set(
+      (yield* sql<{ readonly thread_id: string }>`
+        SELECT thread_id FROM orchestration_v2_projection_threads
+        WHERE ${sql.in("thread_id", ancestors)} AND deleted_at IS NULL
+          AND json_extract(payload_json, '$.archivedAt') IS NULL
+      `).map((row) => row.thread_id),
+    );
+    return ancestors.filter((threadId) => shown.has(threadId));
+  },
+);
+
 /** Moves one thread's spend by `delta`, and its ancestors' delegated spend with it. */
 const changeThreadSpend = Effect.fn("ThreadTokenTotals.changeThreadSpend")(function* (
   sql: SqlClient.SqlClient,

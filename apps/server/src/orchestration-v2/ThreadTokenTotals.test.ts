@@ -6,7 +6,9 @@ import * as SqlClient from "effect/sql/SqlClient";
 import {
   applyTurnSpend,
   ensureTokenTotals,
+  ancestorThreadIds,
   markTurnCounted,
+  shownAncestorThreadIds,
   TOKEN_TOTALS_TABLE,
   turnSpend,
   type TurnSpend,
@@ -45,14 +47,14 @@ const TURNS = [
 
 const createProjectionTables = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
-  yield* sql`CREATE TABLE orchestration_v2_projection_threads (thread_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL)`;
+  yield* sql`CREATE TABLE orchestration_v2_projection_threads (thread_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, deleted_at TEXT)`;
   yield* sql`CREATE TABLE orchestration_v2_projection_provider_turns (provider_turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, payload_json TEXT NOT NULL)`;
   for (const thread of THREADS) {
     const lineage =
       thread.parent === null
         ? {}
         : { parentThreadId: thread.parent, relationshipToParent: thread.relationship };
-    yield* sql`INSERT INTO orchestration_v2_projection_threads VALUES (${thread.id}, ${JSON.stringify({ lineage })})`;
+    yield* sql`INSERT INTO orchestration_v2_projection_threads (thread_id, payload_json) VALUES (${thread.id}, ${JSON.stringify({ lineage })})`;
   }
 });
 
@@ -163,6 +165,18 @@ describe("ThreadTokenTotals", () => {
       yield* sql`UPDATE ${sql(TOKEN_TOTALS_TABLE)} SET models_json = '{"kept":1}' WHERE thread_id = 'other'`;
       yield* ensureTokenTotals(sql);
       assert.deepStrictEqual((yield* readTotals).other?.models, { kept: 1 });
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+  );
+
+  it.effect("refreshes only the delegating threads the sidebar still shows", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* createProjectionTables;
+      yield* sql`UPDATE orchestration_v2_projection_threads SET payload_json = json_set(payload_json, '$.archivedAt', '2026-11-27T10:00:00Z') WHERE thread_id = 'child'`;
+      assert.deepStrictEqual(yield* ancestorThreadIds(sql, ["grandchild"]), ["child", "root"]);
+      assert.deepStrictEqual(yield* shownAncestorThreadIds(sql, ["grandchild"]), ["root"]);
+      yield* sql`UPDATE orchestration_v2_projection_threads SET deleted_at = '2026-11-27T11:00:00Z' WHERE thread_id = 'root'`;
+      assert.deepStrictEqual(yield* shownAncestorThreadIds(sql, ["grandchild"]), []);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 
