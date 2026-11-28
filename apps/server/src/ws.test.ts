@@ -917,10 +917,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ThreadManagement.ThreadManagementService)({}),
   Layer.mock(ThreadSearch.ThreadSearch)({}),
   Layer.mock(UsageService.UsageService)({}),
-  Layer.mock(TokenUsage.TokenUsage)({
-    workflowRun: () => Effect.undefined,
-    workflowRunTotals: () => Effect.succeed({}),
-  }),
+  Layer.mock(TokenUsage.TokenUsage)({}),
   Layer.mock(VcsProvisioningService.VcsProvisioningService)({}),
   Layer.mock(VcsStatusBroadcaster.VcsStatusBroadcaster)({}),
   Layer.mock(WorkspaceEntries.WorkspaceEntries)({}),

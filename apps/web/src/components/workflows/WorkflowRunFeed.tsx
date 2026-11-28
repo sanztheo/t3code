@@ -11,11 +11,9 @@ import {
   type WorkflowQuestion,
   type WorkflowRun,
   type WorkflowRunReference,
-  type WorkflowRunTokens,
 } from "@t3tools/contracts";
 import { formatModelSlugName } from "@t3tools/shared/model";
 import { formatDuration } from "@t3tools/shared/orchestrationTimingCopy";
-import { formatPercent, formatTokens } from "@t3tools/shared/usageFormat";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
 import {
   ArrowLeftIcon,
@@ -52,9 +50,8 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { formatRelativeTimeLabel } from "../../timestampFormat";
 import ChatMarkdown from "../ChatMarkdown";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
-import { Button, InlineButton } from "../ui/button";
+import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import {
   buildWorkflowFeed,
@@ -208,10 +205,6 @@ const queuedText = (beat: WorkflowBeat, resolve: MessageResolver) =>
         }),
       );
 
-/** What each step of the open run spent, by step name, for its row and its card. */
-const StepTokens = createContext<Readonly<Record<string, number>>>({});
-const NO_STEP_TOKENS: Readonly<Record<string, number>> = {};
-
 // The loading view and the timeline each draw a question's card, so a reason typed while the
 // steps load is kept here rather than in the card that is about to be replaced.
 const AnswerDrafts = createContext<{
@@ -227,7 +220,6 @@ export function WorkflowRunFeed({
   onSelect,
   onOpenThread,
   onOpenReference,
-  onOpenDefinition,
 }: {
   readonly environmentId: EnvironmentId;
   readonly node: WorkflowRunNode;
@@ -237,8 +229,6 @@ export function WorkflowRunFeed({
   readonly onSelect: (runId: string | null) => void;
   readonly onOpenThread: (thread: WorkflowThreadTarget) => void;
   readonly onOpenReference: (reference: WorkflowRunReference) => void;
-  /** Open the definition file, or every file when the run's workflow is in none of them. */
-  readonly onOpenDefinition: (file: string | null) => void;
 }) {
   const { run } = node;
   const gt = useGT();
@@ -296,14 +286,6 @@ export function WorkflowRunFeed({
     : wholeSeconds(nowMs - Date.parse(run.startedAt));
   const steps = detail.data?.steps;
   const references = detail.data?.references ?? [];
-  const runTokens = detail.data?.tokens;
-  const definitions = useEnvironmentQuery(
-    serverEnvironment.workflowDefinition({ environmentId, input: {} }),
-  );
-  const definitionFile =
-    definitions.data?.files.find((file) =>
-      file.workflows.includes(`${run.workflow}@${run.version}`),
-    )?.name ?? null;
   // An open transcript is one thread in one environment; `env` is absent for the run's own.
   const openThread = shownTab !== null && "thread" in shownTab ? shownTab : null;
   const chip = (reference: WorkflowRunReference, small = false) => (
@@ -473,221 +455,186 @@ export function WorkflowRunFeed({
 
   return (
     <AnswerDrafts.Provider value={answerDrafts}>
-      <StepTokens.Provider value={runTokens?.byStep ?? NO_STEP_TOKENS}>
-        <article
-          aria-label={run.title}
-          className="mx-auto flex w-full max-w-5xl min-w-0 flex-col px-5 pt-5 pb-10"
-        >
-          <header className="space-y-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="-ms-2.5 md:hidden"
-              onClick={() => onSelect(null)}
-              aria-label={gt("Back to the list of runs")}
+      <article
+        aria-label={run.title}
+        className="mx-auto flex w-full max-w-5xl min-w-0 flex-col px-5 pt-5 pb-10"
+      >
+        <header className="space-y-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="-ms-2.5 md:hidden"
+            onClick={() => onSelect(null)}
+            aria-label={gt("Back to the list of runs")}
+          >
+            <ArrowLeftIcon />
+            <T context="noun, the list of workflow runs">Runs</T>
+          </Button>
+          {parent === null ? null : (
+            <button
+              type="button"
+              className="block cursor-pointer text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              onClick={() => onSelect(parent.runId)}
             >
-              <ArrowLeftIcon />
-              <T context="noun, the list of workflow runs">Runs</T>
-            </Button>
-            {parent === null ? null : (
-              <button
-                type="button"
-                className="block cursor-pointer text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                onClick={() => onSelect(parent.runId)}
-              >
-                <T>
-                  Part of <Var>{parent.title}</Var>
-                </T>
-              </button>
-            )}
-            <div className="flex items-center gap-2">
-              <h2 className="min-w-0 flex-1 text-base font-semibold break-words">{run.title}</h2>
-              <WorkflowStateWord node={node} />
-              {ended ? null : (
-                <Button
-                  size="xs"
-                  variant="ghost-destructive"
-                  disabled={busy || !canCancel}
-                  title={gt("Cancel run")}
-                  onClick={() => void cancelRun()}
-                >
-                  <SquareIcon className="size-2.5 fill-current" />
-                  {gt("Stop")}
-                </Button>
-              )}
-            </div>
-            <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-              <WorkflowChip name={run.workflow} />
-              <span>{run.workflow}</span>
-              <span aria-hidden>·</span>
-              <span>
-                <T>
-                  started{" "}
-                  <Var>
-                    <RelativeLabel value={run.startedAt} />
-                  </Var>
-                </T>
-              </span>
-              {run.status === "paused" ? null : (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>
-                    {ended
-                      ? gt("took {duration}", { duration: formatDuration(ranMs, m) })
-                      : gt("{duration} so far", { duration: formatDuration(ranMs, m) })}
-                  </span>
-                </>
-              )}
-              {runTokens === undefined ? null : (
-                <>
-                  <span aria-hidden>·</span>
-                  {/* A run that ends on an agent has no end card, so the split by model lives here. */}
-                  <Popover>
-                    <PopoverTrigger openOnHover render={<InlineButton tone="muted" />}>
-                      <span className="tabular-nums">
-                        {ended
-                          ? gt("{tokens} tokens", { tokens: formatTokens(runTokens.total) })
-                          : gt("{tokens} tokens so far", { tokens: formatTokens(runTokens.total) })}
-                      </span>
-                    </PopoverTrigger>
-                    <PopoverPopup side="bottom" className="w-72">
-                      <RunTokensFacts tokens={runTokens} />
-                    </PopoverPopup>
-                  </Popover>
-                </>
-              )}
-              {run.retired ? (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>
-                    <T>its version is no longer registered</T>
-                  </span>
-                </>
-              ) : null}
+              <T>
+                Part of <Var>{parent.title}</Var>
+              </T>
+            </button>
+          )}
+          <div className="flex items-center gap-2">
+            <h2 className="min-w-0 flex-1 text-base font-semibold break-words">{run.title}</h2>
+            <WorkflowStateWord node={node} />
+            {ended ? null : (
               <Button
                 size="xs"
-                variant="ghost-muted"
-                className="ms-1"
-                onClick={() => onOpenDefinition(definitionFile)}
+                variant="ghost-destructive"
+                disabled={busy || !canCancel}
+                title={gt("Cancel run")}
+                onClick={() => void cancelRun()}
               >
-                <T context="a workflow's definition file">Definition</T>
-                <ArrowUpRightIcon />
+                <SquareIcon className="size-2.5 fill-current" />
+                {gt("Stop")}
               </Button>
-            </p>
-            {references.length === 0 ? null : (
-              <ul aria-label={gt("What the run touched")} className="flex flex-wrap gap-1.5 pt-1.5">
-                {references.map((reference) => (
-                  <li key={`${reference.kind}:${reference.key}`} className="min-w-0">
-                    {chip(reference, reference.title !== "" && run.title.includes(reference.title))}
-                  </li>
-                ))}
-              </ul>
             )}
-          </header>
-
-          {detail.error ||
-          feed === null ||
-          (feed.length === 0 && run.status === "paused" && loose.length === 0) ? (
-            <>
-              {detail.error ? (
-                <p className="mt-4 text-xs text-destructive">{detail.error}</p>
-              ) : feed === null ? (
-                <p className="mt-4 text-xs text-muted-foreground" role="status">
-                  <T>Loading steps…</T>
-                </p>
-              ) : null}
-              {/* A question the run already asks is answerable without its step history. */}
-              {run.status === "paused" ? (
-                <div className="mt-4 border-t border-border pt-4">
-                  <div className="max-w-2xl">{pause(null, run.pauses, run.detail)}</div>
-                </div>
-              ) : null}
-              {node.questions.map((question) => (
-                <div key={question.name} className="mt-4">
-                  <WorkflowQuestionCard
-                    environmentId={environmentId}
-                    question={question}
-                    onOpenThread={onOpenThread}
-                  />
-                </div>
+          </div>
+          <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+            <WorkflowChip name={run.workflow} />
+            <span>{run.workflow}</span>
+            <span aria-hidden>·</span>
+            <span>
+              <T>
+                started{" "}
+                <Var>
+                  <RelativeLabel value={run.startedAt} />
+                </Var>
+              </T>
+            </span>
+            {run.status === "paused" ? null : (
+              <>
+                <span aria-hidden>·</span>
+                <span>
+                  {ended
+                    ? gt("took {duration}", { duration: formatDuration(ranMs, m) })
+                    : gt("{duration} so far", { duration: formatDuration(ranMs, m) })}
+                </span>
+              </>
+            )}
+            {run.retired ? (
+              <>
+                <span aria-hidden>·</span>
+                <span>
+                  <T>its version is no longer registered</T>
+                </span>
+              </>
+            ) : null}
+          </p>
+          {references.length === 0 ? null : (
+            <ul aria-label={gt("What the run touched")} className="flex flex-wrap gap-1.5 pt-1.5">
+              {references.map((reference) => (
+                <li key={`${reference.kind}:${reference.key}`} className="min-w-0">
+                  {chip(reference, reference.title !== "" && run.title.includes(reference.title))}
+                </li>
               ))}
-            </>
-          ) : (
-            <div className="mt-4 flex flex-col gap-4 @2xl/feed:flex-row @2xl/feed:items-start">
-              <WorkflowTimeline
-                environmentId={environmentId}
-                rows={feed}
-                node={node}
-                nowMs={nowMs}
-                // Only a step someone picked is marked; what the panel follows on its own is not.
-                focus={picked !== null && keys.has(picked) ? picked : null}
-                current={shown}
-                onPick={pick}
-                loose={loose}
-                paused={pausedApart}
-                end={ended ? endWord : null}
-                question={questionOf}
-                onOpenThread={onOpenThread}
-                openedAtMs={openedAtMs}
-              />
-              <section
-                ref={panel}
-                aria-label={gt("What happened")}
-                className="min-w-0 flex-1 border-t border-border pt-4 @2xl/feed:sticky @2xl/feed:top-4 @2xl/feed:self-stretch @2xl/feed:border-t-0 @2xl/feed:border-s @2xl/feed:ps-6 @2xl/feed:pt-1"
-              >
-                {shownBeat !== undefined ? (
-                  // Keyed by the step: a reason typed for one question must not follow to the next.
-                  <div key={shownBeat.name} data-step={shownBeat.name}>
-                    {beatCard(shownBeat)}
-                    {(() => {
-                      // With one reference, the header already says it.
-                      const touched =
-                        references.length > 1
-                          ? workflowStepReferences(references, shownBeat.name)
-                          : [];
-                      return touched.length === 0 ? null : (
-                        <div className="mt-4 flex flex-wrap gap-1.5">
-                          {touched.map((reference) => chip(reference, true))}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ) : shownQuick !== undefined && shownQuick.kind === "quick" ? (
-                  <WorkflowQuickStepsCard row={shownQuick} />
-                ) : asking ? null : focus === "pause" ? (
-                  pause(null, run.pauses, run.detail)
-                ) : focus === "end" ? (
-                  <FeedCard tone={run.status === "completed" ? "done" : "plain"}>
-                    <CardHead
-                      mark={
-                        run.status === "completed" ? (
-                          <CheckIcon className="size-3.5 text-success-foreground" />
-                        ) : null
-                      }
-                      name={endWord}
-                      sub={<RelativeLabel value={run.endedAt ?? run.updatedAt} />}
-                    />
-                    {run.status !== "completed" && run.detail ? (
-                      <p className="mt-3 text-sm break-words whitespace-pre-wrap">{run.detail}</p>
-                    ) : null}
-                    <ResultLines lines={resultLines} />
-                    {runTokens === undefined ? null : (
-                      <RunTokensFacts
-                        tokens={runTokens}
-                        className="mt-4 border-t border-border pt-3"
-                      />
-                    )}
-                  </FeedCard>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    <T>Nothing yet.</T>
-                  </p>
-                )}
-              </section>
-            </div>
+            </ul>
           )}
-        </article>
-      </StepTokens.Provider>
+        </header>
+
+        {detail.error ||
+        feed === null ||
+        (feed.length === 0 && run.status === "paused" && loose.length === 0) ? (
+          <>
+            {detail.error ? (
+              <p className="mt-4 text-xs text-destructive">{detail.error}</p>
+            ) : feed === null ? (
+              <p className="mt-4 text-xs text-muted-foreground" role="status">
+                <T>Loading steps…</T>
+              </p>
+            ) : null}
+            {/* A question the run already asks is answerable without its step history. */}
+            {run.status === "paused" ? (
+              <div className="mt-4 border-t border-border pt-4">
+                <div className="max-w-2xl">{pause(null, run.pauses, run.detail)}</div>
+              </div>
+            ) : null}
+            {node.questions.map((question) => (
+              <div key={question.name} className="mt-4">
+                <WorkflowQuestionCard
+                  environmentId={environmentId}
+                  question={question}
+                  onOpenThread={onOpenThread}
+                />
+              </div>
+            ))}
+          </>
+        ) : (
+          <div className="mt-4 flex flex-col gap-4 @2xl/feed:flex-row @2xl/feed:items-start">
+            <WorkflowTimeline
+              environmentId={environmentId}
+              rows={feed}
+              node={node}
+              nowMs={nowMs}
+              // Only a step someone picked is marked; what the panel follows on its own is not.
+              focus={picked !== null && keys.has(picked) ? picked : null}
+              current={shown}
+              onPick={pick}
+              loose={loose}
+              paused={pausedApart}
+              end={ended ? endWord : null}
+              question={questionOf}
+              onOpenThread={onOpenThread}
+              openedAtMs={openedAtMs}
+            />
+            <section
+              ref={panel}
+              aria-label={gt("What happened")}
+              className="min-w-0 flex-1 border-t border-border pt-4 @2xl/feed:sticky @2xl/feed:top-4 @2xl/feed:self-stretch @2xl/feed:border-t-0 @2xl/feed:border-s @2xl/feed:ps-6 @2xl/feed:pt-1"
+            >
+              {shownBeat !== undefined ? (
+                // Keyed by the step: a reason typed for one question must not follow to the next.
+                <div key={shownBeat.name} data-step={shownBeat.name}>
+                  {beatCard(shownBeat)}
+                  {(() => {
+                    // With one reference, the header already says it.
+                    const touched =
+                      references.length > 1
+                        ? workflowStepReferences(references, shownBeat.name)
+                        : [];
+                    return touched.length === 0 ? null : (
+                      <div className="mt-4 flex flex-wrap gap-1.5">
+                        {touched.map((reference) => chip(reference, true))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : shownQuick !== undefined && shownQuick.kind === "quick" ? (
+                <WorkflowQuickStepsCard row={shownQuick} />
+              ) : asking ? null : focus === "pause" ? (
+                pause(null, run.pauses, run.detail)
+              ) : focus === "end" ? (
+                <FeedCard tone={run.status === "completed" ? "done" : "plain"}>
+                  <CardHead
+                    mark={
+                      run.status === "completed" ? (
+                        <CheckIcon className="size-3.5 text-success-foreground" />
+                      ) : null
+                    }
+                    name={endWord}
+                    sub={<RelativeLabel value={run.endedAt ?? run.updatedAt} />}
+                  />
+                  {run.status !== "completed" && run.detail ? (
+                    <p className="mt-3 text-sm break-words whitespace-pre-wrap">{run.detail}</p>
+                  ) : null}
+                  <ResultLines lines={resultLines} />
+                </FeedCard>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  <T>Nothing yet.</T>
+                </p>
+              )}
+            </section>
+          </div>
+        )}
+      </article>
     </AnswerDrafts.Provider>
   );
 }
@@ -806,7 +753,6 @@ function TimelineRow({
   verbTone = "working",
   aside,
   asideTone,
-  tokens,
   duration,
   selected,
   current = false,
@@ -827,8 +773,6 @@ function TimelineRow({
   readonly verbTone?: keyof typeof VERB_TONE;
   readonly aside?: string | null;
   readonly asideTone?: "failed";
-  /** What the step spent, beside how long it took. */
-  readonly tokens?: string | null;
   readonly duration?: string | null;
   readonly selected: boolean;
   /** The pane beside the timeline shows it. */
@@ -905,11 +849,6 @@ function TimelineRow({
       {verb ? (
         <span className={cn("relative max-w-[40%] shrink-0 truncate text-xs", VERB_TONE[verbTone])}>
           {verb}
-        </span>
-      ) : null}
-      {tokens ? (
-        <span className="relative shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-          {tokens}
         </span>
       ) : null}
       <span className="relative min-w-12 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
@@ -1310,7 +1249,6 @@ function WorkflowBeatRow({
   const under = beat.status === "running";
   const failed = beat.status === "failed";
   const said = workflowAgentSummary(beat).said;
-  const spent = useContext(StepTokens)[beat.name];
   const answer = beat.kind === "ask" ? workflowAnswer(beat.result) : null;
   const sessionId = useEnvironmentSessionId(environmentId);
   const wakes = beat.detail === null ? Number.NaN : Date.parse(beat.detail);
@@ -1425,7 +1363,6 @@ function WorkflowBeatRow({
       }
       aside={aside}
       {...(failed ? { asideTone: "failed" as const } : {})}
-      tokens={spent === undefined ? null : formatTokens(spent)}
       duration={workflowStepTime(elapsedOf(beat), m)}
       selected={selected}
       current={current}
@@ -1513,46 +1450,6 @@ function ResultLines({
     );
   }
   return <Facts facts={lines.map((line) => ({ label: line.label ?? "", value: line.value }))} />;
-}
-
-/** What the run spent in all, then by model, under how it ended. */
-function RunTokensFacts({
-  tokens,
-  className,
-}: {
-  readonly tokens: WorkflowRunTokens;
-  readonly className?: string;
-}) {
-  const gt = useGT();
-  return (
-    <div className={className}>
-      <div className="flex items-baseline gap-2 text-sm">
-        <span className="min-w-0 flex-1 font-semibold tabular-nums">
-          {gt("{tokens} tokens", { tokens: formatTokens(tokens.total) })}
-        </span>
-        {tokens.cachedTokens > 0 ? (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {gt("{share} cache reads", {
-              share: formatPercent(tokens.cachedTokens / tokens.total, 0),
-            })}
-          </span>
-        ) : null}
-      </div>
-      <dl className="mt-1.5 grid grid-cols-[minmax(0,1fr)_max-content] gap-x-4 gap-y-1.5 text-sm">
-        {tokens.byModel.map((row) => (
-          <div key={row.model} className="contents">
-            <dt className="truncate text-muted-foreground">
-              {formatModelSlugName(row.model)} ·{" "}
-              {gt("{count, plural, one {{count} step} other {{count} steps}}", {
-                count: row.steps,
-              })}
-            </dt>
-            <dd className="text-right tabular-nums">{formatTokens(row.tokens)}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
 }
 
 /** What a step left behind, as a list of names and values. */
@@ -1837,7 +1734,6 @@ function WorkflowAgentCard({
   const under = beat.status === "running";
   const length = formatDuration(elapsedOf(beat), m);
   const summary = workflowAgentSummary(beat);
-  const spent = useContext(StepTokens)[beat.name];
   const start = summary.said === null ? null : workflowSaidStart(summary.said, SAID_SHOWN);
   const liveWord = !under
     ? null
@@ -1852,7 +1748,6 @@ function WorkflowAgentCard({
     shell === null ? null : formatModelSlugName(shell.modelSelection.model),
     liveWord,
     length,
-    spent === undefined ? null : gt("{tokens} tokens", { tokens: formatTokens(spent) }),
     beat.attempts > 1 ? nthTry(beat.attempts, m) : null,
     elsewhere
       ? gt("on {environment}", { environment: threadOpen.label ?? threadEnvironmentId })

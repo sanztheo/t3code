@@ -2429,26 +2429,7 @@ export const layerWsRpc = (
           input.changes === true ? workflows.watch : Workflows.wholeLists(workflows.watch),
         [WS_METHODS.workflowsCounts]: (_input) => workflows.counts,
         [WS_METHODS.workflowsGet]: (input) =>
-          Effect.all([
-            workflows.get(input.runId).pipe(Effect.mapError(toWorkflowRequestError)),
-            tokenUsage.workflowRun(input.runId).pipe(
-              Effect.tapError((error) =>
-                Effect.logWarning("Could not total a workflow run's tokens.", error),
-              ),
-              Effect.orElseSucceed(() => undefined),
-            ),
-          ]).pipe(
-            Effect.map(([detail, tokens]) =>
-              tokens === undefined ? detail : { ...detail, tokens },
-            ),
-          ),
-        [WS_METHODS.workflowsTokenTotals]: (input) =>
-          tokenUsage.workflowRunTotals(input.runIds).pipe(
-            Effect.tapError((error) =>
-              Effect.logWarning("Could not total workflow runs' tokens.", error),
-            ),
-            Effect.orElseSucceed(() => ({})),
-          ),
+          workflows.get(input.runId).pipe(Effect.mapError(toWorkflowRequestError)),
         [WS_METHODS.workflowsAbout]: (input) =>
           workflows.about(input).pipe(Effect.mapError(toWorkflowRequestError)),
         [WS_METHODS.workflowsAnswer]: (input) =>

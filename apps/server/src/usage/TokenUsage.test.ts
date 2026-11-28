@@ -6,8 +6,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 import * as TokenUsage from "./TokenUsage.ts";
 
-// "lead" runs two steps in one thread; "build" delegated to "helper" and was forked into "fork",
-// a conversation of its own; "remote" ran elsewhere. Run 2 reuses "helper"; run 3 retried a step.
+// "build" delegated to "helper" and was forked into "fork", a conversation of its own.
 const THREADS = [
   { id: "lead", parent: null, relationship: null, title: "Lead" },
   { id: "build", parent: null, relationship: null, title: "Build" },
@@ -17,121 +16,6 @@ const THREADS = [
   { id: "chat", parent: null, relationship: null, title: "A chat" },
   { id: "retrier", parent: null, relationship: null, title: "Retrier" },
   { id: "shared", parent: null, relationship: null, title: "Shared" },
-] as const;
-
-const RUNS = [
-  { id: "run-1", startedAt: "2026-11-27T10:00:00Z" },
-  { id: "run-2", startedAt: "2026-11-27T12:00:00Z" },
-  { id: "run-3", startedAt: "2026-11-27T13:00:00Z" },
-  { id: "run-4", startedAt: "2026-11-27T14:00:00Z" },
-  { id: "run-5", startedAt: "2026-11-27T14:12:00Z" },
-] as const;
-
-const STEPS = [
-  {
-    run: "run-1",
-    attempts: 1,
-    name: "plan",
-    thread: "lead",
-    from: "2026-11-27T10:00:00Z",
-    until: "2026-11-27T10:10:00Z",
-    env: null,
-  },
-  {
-    run: "run-1",
-    attempts: 1,
-    name: "build",
-    thread: "build",
-    from: "2026-11-27T10:10:00Z",
-    until: "2026-11-27T10:30:00Z",
-    env: null,
-  },
-  // Retried too: its earlier attempts began after "plan" ended on the same thread.
-  {
-    run: "run-1",
-    attempts: 2,
-    name: "review",
-    thread: "lead",
-    from: "2026-11-27T10:30:00Z",
-    until: null,
-    env: null,
-  },
-  {
-    run: "run-1",
-    attempts: 1,
-    name: "remote",
-    thread: "remote",
-    from: "2026-11-27T10:30:00Z",
-    until: null,
-    env: "env-2",
-  },
-  {
-    run: "run-2",
-    attempts: 1,
-    name: "reuse",
-    thread: "helper",
-    from: "2026-11-27T12:00:00Z",
-    until: null,
-    env: null,
-  },
-  // Its row keeps only the last attempt's start.
-  {
-    run: "run-3",
-    attempts: 2,
-    name: "flaky",
-    thread: "retrier",
-    from: "2026-11-27T13:30:00Z",
-    until: null,
-    env: null,
-  },
-  // "build" failed once, "side" then ran on the same thread, and "build" was retried.
-  {
-    run: "run-4",
-    attempts: 1,
-    name: "plan",
-    thread: "shared",
-    from: "2026-11-27T14:00:00Z",
-    until: "2026-11-27T14:10:00Z",
-    env: null,
-  },
-  {
-    run: "run-4",
-    attempts: 2,
-    name: "build",
-    thread: "shared",
-    from: "2026-11-27T14:30:00Z",
-    until: "2026-11-27T14:35:00Z",
-    env: null,
-  },
-  {
-    run: "run-4",
-    attempts: 1,
-    name: "side",
-    thread: "shared",
-    from: "2026-11-27T14:20:00Z",
-    until: "2026-11-27T14:25:00Z",
-    env: null,
-  },
-  // Another run used the thread between "build"'s attempts.
-  {
-    run: "run-5",
-    attempts: 1,
-    name: "borrow",
-    thread: "shared",
-    from: "2026-11-27T14:12:00Z",
-    until: "2026-11-27T14:14:00Z",
-    env: null,
-  },
-  // Retried as well: the turns before its last attempt that no window holds go to "build" first.
-  {
-    run: "run-4",
-    attempts: 2,
-    name: "test",
-    thread: "shared",
-    from: "2026-11-27T14:45:00Z",
-    until: null,
-    env: null,
-  },
 ] as const;
 
 const TURNS = [
@@ -160,7 +44,6 @@ const TURNS = [
     model: "sol",
   },
   { id: "t4", thread: "lead", at: "2026-11-27T10:31:00.000Z", tokens: 20, cached: 0, model: "sol" },
-  // Before any step of this run: the lead thread's earlier life, not this run's.
   {
     id: "t5",
     thread: "lead",
@@ -185,7 +68,7 @@ const TURNS = [
     cached: 0,
     model: "opus",
   },
-  // Inside the build step, but a fork is not a delegate.
+  // A fork is not a delegate.
   {
     id: "t8",
     thread: "fork",
@@ -242,20 +125,12 @@ const seed = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   yield* sql`CREATE TABLE orchestration_v2_projection_threads (thread_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL)`;
   yield* sql`CREATE TABLE orchestration_v2_projection_provider_turns (provider_turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, started_at TEXT, completed_at TEXT, payload_json TEXT NOT NULL)`;
-  yield* sql`CREATE TABLE workflow_runs (run_id TEXT PRIMARY KEY, started_at TEXT NOT NULL)`;
-  yield* sql`CREATE TABLE workflow_steps (run_id TEXT NOT NULL, name TEXT NOT NULL, thread_id TEXT, environment_id TEXT, started_at TEXT NOT NULL, ended_at TEXT, attempts INTEGER NOT NULL, PRIMARY KEY (run_id, name))`;
-  for (const run of RUNS) {
-    yield* sql`INSERT INTO workflow_runs VALUES (${run.id}, ${run.startedAt})`;
-  }
   for (const thread of THREADS) {
     const lineage =
       thread.parent === null
         ? {}
         : { parentThreadId: thread.parent, relationshipToParent: thread.relationship };
     yield* sql`INSERT INTO orchestration_v2_projection_threads VALUES (${thread.id}, ${JSON.stringify({ title: thread.title, lineage })})`;
-  }
-  for (const step of STEPS) {
-    yield* sql`INSERT INTO workflow_steps VALUES (${step.run}, ${step.name}, ${step.thread}, ${step.env}, ${step.from}, ${step.until}, ${step.attempts})`;
   }
   for (const turn of TURNS) {
     const usage = {
@@ -273,33 +148,6 @@ const layer = TokenUsage.layer.pipe(
 );
 
 describe("TokenUsage", () => {
-  it.effect("totals a workflow run by step and model, delegated threads included", () =>
-    Effect.gen(function* () {
-      yield* seed;
-      const tokenUsage = yield* TokenUsage.TokenUsage;
-      assert.deepStrictEqual(yield* tokenUsage.workflowRun("run-1"), {
-        total: 470,
-        cachedTokens: 60,
-        byModel: [
-          { model: "opus", tokens: 400, steps: 2 },
-          { model: "sol", tokens: 70, steps: 2 },
-        ],
-        byStep: { plan: 100, build: 350, review: 20 },
-      });
-      assert.deepStrictEqual(
-        yield* tokenUsage.workflowRunTotals(["run-1", "run-2", "run-3", "run-4", "run-5", "run-6"]),
-        { "run-1": 470, "run-2": 5, "run-3": 150, "run-4": 200, "run-5": 3 },
-      );
-      assert.deepStrictEqual((yield* tokenUsage.workflowRun("run-4"))?.byStep, {
-        plan: 100,
-        build: 80,
-        side: 7,
-        test: 13,
-      });
-      assert.strictEqual(yield* tokenUsage.workflowRun("run-6"), undefined);
-    }).pipe(Effect.provide(layer)),
-  );
-
   it.effect("ranks top-level conversations in a window, with what their delegates spent", () =>
     Effect.gen(function* () {
       yield* seed;

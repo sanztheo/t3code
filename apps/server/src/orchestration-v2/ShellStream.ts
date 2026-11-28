@@ -601,7 +601,7 @@ export function withDelegatingThreadRefreshes(
   return coalesceShellApplicationEvents([...events, ...refreshes]);
 }
 
-export function coalesceShellApplicationEvents<A extends ShellApplicationEvent>(
+function coalesceShellApplicationEvents<A extends ShellApplicationEvent>(
   events: ReadonlyArray<A>,
 ): ReadonlyArray<A> {
   const latestByAggregate = new Map<string, A>();

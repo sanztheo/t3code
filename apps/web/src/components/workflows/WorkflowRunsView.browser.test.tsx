@@ -64,11 +64,6 @@ const state = vi.hoisted(() => ({
   detailError: null as string | null,
   linked: [] as ReadonlyArray<string>,
   sessionId: null as string | null,
-  definitions: { query: "definitions" },
-  definitionFiles: [] as ReadonlyArray<unknown>,
-  runTotals: { query: "run-totals" },
-  totals: {} as Record<string, number>,
-  tokens: {} as Record<string, unknown>,
 }));
 const canOperate = Atom.make(true);
 const cannotOperate = Atom.make(false);
@@ -86,9 +81,6 @@ function setup(
   state.detailError = null;
   state.linked = [];
   state.sessionId = null;
-  state.definitionFiles = [];
-  state.totals = {};
-  state.tokens = {};
 }
 
 const environment = { environmentId, label: "Laptop" };
@@ -103,8 +95,6 @@ vi.mock(import("../../state/server"), async (original) => {
       workflowsLive: (() => state.live) as never,
       workflowRun: ((target: { readonly input: { readonly runId: string } }) =>
         target.input) as never,
-      workflowDefinition: (() => state.definitions) as never,
-      workflowRunTokenTotals: (() => state.runTotals) as never,
       answerWorkflowQuestion: {
         ...actual.serverEnvironment.answerWorkflowQuestion,
         permissionAtom,
@@ -121,18 +111,13 @@ vi.mock(import("../../state/query"), async (original) => ({
     data:
       request === state.live
         ? state.snapshot
-        : request === state.definitions
-          ? { files: state.definitionFiles }
-          : request === state.runTotals
-            ? state.totals
-            : state.detailError !== null
-              ? null
-              : {
-                  run: null,
-                  steps: state.steps[request.runId ?? ""] ?? [],
-                  references: state.references[request.runId ?? ""] ?? [],
-                  tokens: state.tokens[request.runId ?? ""],
-                },
+        : state.detailError !== null
+          ? null
+          : {
+              run: null,
+              steps: state.steps[request.runId ?? ""] ?? [],
+              references: state.references[request.runId ?? ""] ?? [],
+            },
     error: request === state.live ? null : state.detailError,
     isPending: false,
     refresh: vi.fn(),
@@ -206,7 +191,6 @@ const page = (
     readonly select?: (runId: string | null) => void;
     readonly thread?: () => void;
     readonly reference?: () => void;
-    readonly definition?: (file: string | null) => void;
   } = {},
   shownTab: WorkflowPaneTab | null = null,
 ) => (
@@ -218,7 +202,7 @@ const page = (
     onSelect={on.select ?? vi.fn()}
     onOpenThread={on.thread ?? vi.fn()}
     onOpenReference={on.reference ?? vi.fn()}
-    onOpenDefinitions={on.definition ?? vi.fn()}
+    onOpenDefinitions={vi.fn()}
   />
 );
 
@@ -998,45 +982,6 @@ describe("WorkflowRunsView", () => {
       .element(screen.getByRole("combobox", { name: "Kind of question" }))
       .not.toBeInTheDocument();
     localStorage.removeItem(KIND_KEY);
-  });
-
-  it("shows what a run spent, by step and by model, and opens the file that defines it", async () => {
-    setup(
-      {
-        runs: [run({ runId: "fix", title: "Fix", status: "completed", endedAt: at(2) })],
-        questions: [],
-      },
-      { fix: [step({ name: "build", kind: "agent", endedAt: at(2) })] },
-    );
-    state.totals = { fix: 1_250_000 };
-    state.tokens = {
-      fix: {
-        total: 1_250_000,
-        cachedTokens: 0,
-        byModel: [
-          { model: "claude-opus-5-5", tokens: 1_000_000, steps: 1 },
-          { model: "gpt-5", tokens: 250_000, steps: 1 },
-        ],
-        byStep: { build: 1_250_000 },
-      },
-    };
-    state.definitionFiles = [{ name: "release.ts", workflows: ["release@1"] }];
-    const definition = vi.fn();
-    await using _desktop = await desktop();
-    await using screen = await render(page("fix", { definition }));
-
-    await screen.getByRole("button", { name: "All", exact: true }).click();
-    const runs = screen.getByRole("navigation", { name: "Workflow runs" });
-    await expect.element(runs.getByText("1.25M", { exact: true })).toBeVisible();
-    await expect.element(screen.getByText("1.25M tokens").first()).toBeVisible();
-    const happened = screen.getByRole("region", { name: "What happened" });
-    await expect.element(happened).toMatchTextContent(/build.*1\.25M tokens/);
-    await screen.getByRole("button", { name: "1.25M tokens" }).click();
-    await expect
-      .element(screen.getByRole("dialog"))
-      .toMatchTextContent(/1\.25M tokens.*Opus.*1 step.*1M.*250K/);
-    await screen.getByRole("button", { name: "Definition" }).click();
-    expect(definition.mock.calls).toEqual([["release.ts"]]);
   });
 
   it("says how long a finished run and its steps took in the UI language", async () => {

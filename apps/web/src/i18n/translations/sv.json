@@ -12585,7 +12585,6 @@
   "614e5ad58a795fb5": "Stoppa",
   "04b050b0329f0ac8": "tog {duration}",
   "aff78e1774818ff4": "{duration} hittills",
-  "ddbb5d2bdc572774": "{tokens} tokens hittills",
   "38eddd466439afc9": "Vad körningen rörde",
   "156ec271d49ddd70": "Vad som hände",
   "34f59bbbead0b97f": "{names} och {count} till",
@@ -12636,7 +12635,6 @@
     }
   ],
   "8bffb377e2a6a7de": "dess version är inte längre registrerad",
-  "584a1023bdbd0dfd": "Definition",
   "f92d9132f7b85d1a": "Läser in steg…",
   "6ebc59f64c761a49": "Inget än.",
   "a759dccd157d7dae": [
@@ -12703,7 +12701,6 @@
   "f25af5332ffc3734": "Inget väntar på dig.",
   "c3f0119b8d6231f8": "Inget körs.",
   "33028dfc1229eaa6": "Inga körningar än.",
-  "395572190cf6ce68": "Avslutad · en agent arbetar igen",
   "5459bf696a187c26": "Kunde inte läsa in arbetsflödeskörningarna",
   "d57c35d43b0f163a": "Den här körningen finns inte här",
   "b9aae2f7cdb1a379": "Inga arbetsflödeskörningar än",
@@ -13035,7 +13032,6 @@
   ],
   "91aadfc843c600de": "Verifiera Google-konto",
   "201490988858b511": "återkallad av {by}",
-  "43aeffb7e3aa5337": "{count, plural, one {{count} steg} other {{count} steg}}",
   "99451a5d2d40440f": "Återkallad av {by}.",
   "3ee30a50b70fffab": "Återkallad av {by}: {reason}",
   "92e129bf413a1220": "återkallad",
