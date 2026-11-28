@@ -16,12 +16,14 @@ const THREADS = [
   { id: "remote", parent: null, relationship: null, title: "Remote" },
   { id: "chat", parent: null, relationship: null, title: "A chat" },
   { id: "retrier", parent: null, relationship: null, title: "Retrier" },
+  { id: "shared", parent: null, relationship: null, title: "Shared" },
 ] as const;
 
 const RUNS = [
   { id: "run-1", startedAt: "2026-11-27T10:00:00Z" },
   { id: "run-2", startedAt: "2026-11-27T12:00:00Z" },
   { id: "run-3", startedAt: "2026-11-27T13:00:00Z" },
+  { id: "run-4", startedAt: "2026-11-27T14:00:00Z" },
 ] as const;
 
 const STEPS = [
@@ -79,6 +81,34 @@ const STEPS = [
     thread: "retrier",
     from: "2026-11-27T13:30:00Z",
     until: null,
+    env: null,
+  },
+  // "build" failed once, "side" then ran on the same thread, and "build" was retried.
+  {
+    run: "run-4",
+    attempts: 1,
+    name: "plan",
+    thread: "shared",
+    from: "2026-11-27T14:00:00Z",
+    until: "2026-11-27T14:10:00Z",
+    env: null,
+  },
+  {
+    run: "run-4",
+    attempts: 2,
+    name: "build",
+    thread: "shared",
+    from: "2026-11-27T14:30:00Z",
+    until: null,
+    env: null,
+  },
+  {
+    run: "run-4",
+    attempts: 1,
+    name: "side",
+    thread: "shared",
+    from: "2026-11-27T14:20:00Z",
+    until: "2026-11-27T14:25:00Z",
     env: null,
   },
 ] as const;
@@ -167,6 +197,21 @@ const TURNS = [
     cached: 0,
     model: "sol",
   },
+  ...(
+    [
+      ["t12", "14:01", 100],
+      ["t13", "14:15", 30],
+      ["t14", "14:21", 7],
+      ["t15", "14:31", 50],
+    ] as const
+  ).map(([id, time, tokens]) => ({
+    id,
+    thread: "shared",
+    at: `2026-11-27T${time}:00.000Z`,
+    tokens,
+    cached: 0,
+    model: "sol",
+  })),
 ] as const;
 
 const seed = Effect.gen(function* () {
@@ -218,10 +263,15 @@ describe("TokenUsage", () => {
         byStep: { plan: 100, build: 350, review: 20 },
       });
       assert.deepStrictEqual(
-        yield* tokenUsage.workflowRunTotals(["run-1", "run-2", "run-3", "run-4"]),
-        { "run-1": 470, "run-2": 5, "run-3": 150 },
+        yield* tokenUsage.workflowRunTotals(["run-1", "run-2", "run-3", "run-4", "run-5"]),
+        { "run-1": 470, "run-2": 5, "run-3": 150, "run-4": 187 },
       );
-      assert.strictEqual(yield* tokenUsage.workflowRun("run-4"), undefined);
+      assert.deepStrictEqual((yield* tokenUsage.workflowRun("run-4"))?.byStep, {
+        plan: 100,
+        build: 80,
+        side: 7,
+      });
+      assert.strictEqual(yield* tokenUsage.workflowRun("run-5"), undefined);
     }).pipe(Effect.provide(layer)),
   );
 
@@ -241,6 +291,13 @@ describe("TokenUsage", () => {
           selfTokens: 300,
           delegatedTokens: 55,
           delegatedThreads: 1,
+        },
+        {
+          threadId: "shared",
+          title: "Shared",
+          selfTokens: 187,
+          delegatedTokens: 0,
+          delegatedThreads: 0,
         },
         {
           threadId: "retrier",
