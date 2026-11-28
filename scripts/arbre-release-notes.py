@@ -12,6 +12,7 @@ from pathlib import Path
 UPSTREAM = "pingdotgg/t3code"
 FOLDED = "<details><summary>Full changelog</summary>"
 NO_CHANGES = "Aucun changement visible dans l’application de bureau."
+UNTRANSLATED = "Les changements de cette version sont listés dans le journal complet ci-dessous."
 COMMIT = re.compile(r"^(\w+)(?:\(([^)]+)\))?!?:")
 MOBILE = {"mobile", "android", "ios", "expo"}
 INTERNAL = {"arbre", "build", "ci", "chore", "docs", "refactor", "style", "test"}
@@ -136,9 +137,18 @@ def summarize(changes, official):
             env={"PATH": os.defpath, "LANG": "C.UTF-8"},
             timeout=300,
         )
-    # llama-completion writes both the answer and its end marker to generic stdout.
-    highlights = json.loads(output.removesuffix("[end of text]").strip())
-    return format_highlights(highlights, len(selected))
+    return translated_highlights(output, len(selected))
+
+
+def translated_highlights(output, expected_count):
+    try:
+        # llama-completion writes both the answer and its end marker to generic stdout.
+        highlights = json.loads(output.removesuffix("[end of text]").strip())
+        return format_highlights(highlights, expected_count)
+    except ValueError:
+        # The pinned model answers the same for the same sources, so a rejected translation would
+        # block every build until upstream moves; the folded changelog still links every change.
+        return UNTRANSLATED
 
 
 def select_changes(changes):
