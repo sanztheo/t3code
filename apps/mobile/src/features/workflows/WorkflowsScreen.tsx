@@ -1,6 +1,7 @@
 import {
   defaultWorkflowListTab,
   groupWorkflowRuns,
+  isWorkflowRunWorkingAgain,
   listedWorkflowRuns,
   workflowChip,
   workflowQuestionKinds,
@@ -185,7 +186,7 @@ function EnvironmentRuns(props: {
           <RunRow
             key={node.run.runId}
             node={node}
-            workingAgain={node.run.endedAt !== null && workingRunIds.has(node.run.runId)}
+            workingAgain={isWorkflowRunWorkingAgain(node, workingRunIds)}
             onOpenSubject={node.run.subject === undefined ? null : subjectOpener(node.run.subject)}
             onOpen={() =>
               navigation.navigate("WorkflowRun", {

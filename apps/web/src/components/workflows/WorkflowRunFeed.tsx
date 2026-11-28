@@ -302,7 +302,7 @@ export function WorkflowRunFeed({
   );
   const definitionFile =
     definitions.data?.files.find((file) =>
-      file.workflows.some((workflow) => workflow.startsWith(`${run.workflow}@`)),
+      file.workflows.includes(`${run.workflow}@${run.version}`),
     )?.name ?? null;
   // An open transcript is one thread in one environment; `env` is absent for the run's own.
   const openThread = shownTab !== null && "thread" in shownTab ? shownTab : null;

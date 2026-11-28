@@ -406,6 +406,20 @@ describe("applyShellStreamEvents", () => {
     ).toBeNull();
   });
 
+  it("applies every row a batch carries at one sequence, such as a delegating parent", () => {
+    const seed = { ...v2ShellSnapshot, threads: [a, b], snapshotSequence: 10 };
+    const next = applyShellStreamEvents(seed, [
+      update(11, { ...a, title: "child spent" }),
+      update(11, { ...b, title: "parent total moved" }),
+    ]);
+    expect(next.threads.map((thread) => thread.title)).toEqual([
+      "child spent",
+      "parent total moved",
+    ]);
+    expect(next.snapshotSequence).toBe(11);
+    expect(applyShellStreamEvents(next, [update(11, { ...a, title: "replayed" })])).toBe(next);
+  });
+
   it("keeps collection identities for equal rows and rejects stale deltas without indexing", () => {
     const seed = { ...v2ShellSnapshot, threads: [a, b], snapshotSequence: 4 };
     const next = applyShellStreamEvents(seed, [update(5, { ...a }), update(6, { ...b })]);

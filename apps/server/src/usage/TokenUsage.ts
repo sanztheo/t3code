@@ -5,12 +5,14 @@ import type {
   WorkflowRunTokenTotals,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as SqlClient from "effect/sql/SqlClient";
 import type * as SqlError from "effect/sql/SqlError";
 
 import {
+  delegatingParentSql,
   TURN_CACHED_TOKENS_SQL,
   TURN_MODEL_SQL,
   TURN_TOKENS_SQL,
@@ -38,43 +40,53 @@ interface AgentStep {
   readonly thread_id: string;
   readonly started_at: string;
   readonly ended_at: string | null;
+  readonly attempts: number;
+  readonly run_started_at: string;
 }
 
-/** Each thread with the threads it delegated to, directly or not. */
+/**
+ * Each thread with the threads it delegated to, directly or not. Each tree stands alone: a thread
+ * that is also another root, such as a subagent a later run reused, still counts under this one.
+ */
 const delegationTrees = Effect.fn("TokenUsage.delegationTrees")(function* (
   sql: SqlClient.SqlClient,
   rootIds: ReadonlyArray<string>,
 ) {
-  const roots = new Set(rootIds);
-  const parentOf = new Map<string, string>();
-  let frontier = [...roots];
+  const childrenOf = new Map<string, Array<string>>();
+  const fetched = new Set<string>();
+  let frontier = [...new Set(rootIds)];
   for (let depth = 0; frontier.length > 0 && depth < MAX_LINEAGE_DEPTH; depth += 1) {
+    for (const threadId of frontier) fetched.add(threadId);
     const children = yield* sql<{ readonly thread_id: string; readonly parent_id: string }>`
-      SELECT thread_id, json_extract(payload_json, '$.lineage.parentThreadId') AS parent_id
-      FROM orchestration_v2_projection_threads
-      WHERE json_extract(payload_json, '$.lineage.parentThreadId') IN ${sql.in(frontier)}
+      SELECT * FROM (
+        SELECT t.thread_id, ${sql.literal(delegatingParentSql("t"))} AS parent_id
+        FROM orchestration_v2_projection_threads t
+      ) WHERE parent_id IN ${sql.in(frontier)}
     `;
     frontier = [];
     for (const child of children) {
-      if (parentOf.has(child.thread_id) || roots.has(child.thread_id)) continue;
-      parentOf.set(child.thread_id, child.parent_id);
-      frontier.push(child.thread_id);
+      childrenOf.set(child.parent_id, [
+        ...(childrenOf.get(child.parent_id) ?? []),
+        child.thread_id,
+      ]);
+      if (!fetched.has(child.thread_id)) frontier.push(child.thread_id);
     }
   }
-  const trees = new Map([...roots].map((rootId) => [rootId, [rootId]] as const));
-  for (const threadId of parentOf.keys()) {
-    let root = threadId;
-    for (let parent = parentOf.get(root); parent !== undefined; parent = parentOf.get(root)) {
-      root = parent;
+  const treeOf = (rootId: string) => {
+    const tree = new Set([rootId]);
+    for (const threadId of tree) {
+      for (const child of childrenOf.get(threadId) ?? []) tree.add(child);
     }
-    trees.get(root)?.push(threadId);
-  }
-  return trees;
+    return [...tree];
+  };
+  return new Map(rootIds.map((rootId) => [rootId, treeOf(rootId)] as const));
 });
 
 /**
  * The turns each agent step of these runs spent: its thread's and its delegated threads' turns
- * that started while the step ran. Steps in a linked environment ran elsewhere and are left out.
+ * that started while the step ran. A retried step keeps only its last attempt's start, so its
+ * earlier attempts are counted from the run's start. Steps in a linked environment ran elsewhere
+ * and are left out.
  */
 const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
   sql: SqlClient.SqlClient,
@@ -82,9 +94,11 @@ const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
 ) {
   if (runIds.length === 0) return [];
   const steps = yield* sql<AgentStep>`
-    SELECT run_id, name, thread_id, started_at, ended_at
-    FROM workflow_steps
-    WHERE ${sql.in("run_id", runIds)} AND thread_id IS NOT NULL AND environment_id IS NULL
+    SELECT s.run_id, s.name, s.thread_id, s.started_at, s.ended_at, s.attempts,
+      r.started_at AS run_started_at
+    FROM workflow_steps s
+    JOIN workflow_runs r ON r.run_id = s.run_id
+    WHERE ${sql.in("s.run_id", runIds)} AND s.thread_id IS NOT NULL AND s.environment_id IS NULL
   `;
   if (steps.length === 0) return [];
   const trees = yield* delegationTrees(
@@ -103,7 +117,7 @@ const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
   `;
   const turnsByThread = Map.groupBy(turns, (turn) => turn.thread_id);
   return steps.map((step) => {
-    const from = Date.parse(step.started_at);
+    const from = Date.parse(step.attempts > 1 ? step.run_started_at : step.started_at);
     const until = step.ended_at === null ? Number.POSITIVE_INFINITY : Date.parse(step.ended_at);
     const stepTurns = (trees.get(step.thread_id) ?? []).flatMap((threadId) =>
       (turnsByThread.get(threadId) ?? []).filter((turn) => {
@@ -199,10 +213,20 @@ const make = Effect.gen(function* () {
   ) {
     const sinceTimeMs = input.sinceTime === undefined ? undefined : Date.parse(input.sinceTime);
     const untilTimeMs = input.untilTime === undefined ? undefined : Date.parse(input.untilTime);
-    const inWindow = usageTimestampFilter({ ...input, sinceTimeMs, untilTimeMs });
+    const inWindow = usageTimestampFilter({
+      sinceDay: input.sinceDay,
+      untilDay: input.untilDay,
+      timeZone: input.timeZone,
+      ...(sinceTimeMs === undefined ? {} : { sinceTimeMs }),
+      ...(untilTimeMs === undefined ? {} : { untilTimeMs }),
+    });
     // A day in the window's zone spans at most a day either side of the same UTC day.
-    const from = new Date(sinceTimeMs ?? Date.parse(`${input.sinceDay}T00:00:00Z`) - DAY_MS);
-    const until = new Date(untilTimeMs ?? Date.parse(`${input.untilDay}T00:00:00Z`) + 2 * DAY_MS);
+    const from = DateTime.formatIso(
+      DateTime.makeUnsafe(sinceTimeMs ?? Date.parse(`${input.sinceDay}T00:00:00Z`) - DAY_MS),
+    );
+    const until = DateTime.formatIso(
+      DateTime.makeUnsafe(untilTimeMs ?? Date.parse(`${input.untilDay}T00:00:00Z`) + 2 * DAY_MS),
+    );
     const turns = yield* sql<{
       readonly thread_id: string;
       readonly at: string;
@@ -211,15 +235,16 @@ const make = Effect.gen(function* () {
       SELECT p.thread_id, COALESCE(p.completed_at, p.started_at) AS at,
         ${sql.literal(TURN_TOKENS_SQL)} AS tokens
       FROM orchestration_v2_projection_provider_turns p
-      WHERE COALESCE(p.completed_at, p.started_at) >= ${from.toISOString()}
-        AND COALESCE(p.completed_at, p.started_at) < ${until.toISOString()}
+      WHERE COALESCE(p.completed_at, p.started_at) >= ${from}
+        AND COALESCE(p.completed_at, p.started_at) < ${until}
         AND json_type(p.payload_json, '$.turnTokenUsage') IS NOT NULL
     `;
     const parents = new Map(
       (yield* sql<{ readonly thread_id: string; readonly parent_id: string }>`
-        SELECT thread_id, json_extract(payload_json, '$.lineage.parentThreadId') AS parent_id
-        FROM orchestration_v2_projection_threads
-        WHERE json_extract(payload_json, '$.lineage.parentThreadId') IS NOT NULL
+        SELECT * FROM (
+          SELECT t.thread_id, ${sql.literal(delegatingParentSql("t"))} AS parent_id
+          FROM orchestration_v2_projection_threads t
+        ) WHERE parent_id IS NOT NULL
       `).map((row) => [row.thread_id, row.parent_id] as const),
     );
     const toRoot = rootOf(parents);

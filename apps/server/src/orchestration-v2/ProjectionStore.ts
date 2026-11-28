@@ -9,6 +9,7 @@ import { makeThreadFind } from "./ThreadFind.ts";
 import {
   applyTurnSpend,
   ensureTokenTotals,
+  markTurnCounted,
   decodeStoredTurnUsage,
   tokenTotalsFromRow,
   TOKEN_TOTALS_TABLE,
@@ -3146,6 +3147,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, ProjectionStoreService
                   spend: turnSpend(providerTurn.turnTokenUsage, providerTurn.model),
                 },
               });
+              yield* markTurnCounted(sql, event.payload.id);
               break;
             }
             case "runtime-request.updated": {

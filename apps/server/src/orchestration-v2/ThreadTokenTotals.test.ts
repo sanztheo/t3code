@@ -6,17 +6,20 @@ import * as SqlClient from "effect/sql/SqlClient";
 import {
   applyTurnSpend,
   ensureTokenTotals,
+  markTurnCounted,
   TOKEN_TOTALS_TABLE,
   turnSpend,
   type TurnSpend,
 } from "./ThreadTokenTotals.ts";
 
-// root ← child ← grandchild, plus an unrelated thread.
+// root ← child ← grandchild as subagents, a fork of root that keeps its own spend, and an
+// unrelated thread.
 const THREADS = [
-  { id: "root", parent: null },
-  { id: "child", parent: "root" },
-  { id: "grandchild", parent: "child" },
-  { id: "other", parent: null },
+  { id: "root", parent: null, relationship: null },
+  { id: "child", parent: "root", relationship: "subagent" },
+  { id: "grandchild", parent: "child", relationship: "subagent" },
+  { id: "fork", parent: "root", relationship: "fork" },
+  { id: "other", parent: null, relationship: null },
 ] as const;
 
 const TURNS = [
@@ -37,6 +40,7 @@ const TURNS = [
   },
   { id: "t3", thread: "grandchild", usage: { inputTokens: 4, outputTokens: 1, models: ["sol"] } },
   { id: "t4", thread: "other", usage: { inputTokens: 2, outputTokens: 1 } },
+  { id: "t5", thread: "fork", usage: { inputTokens: 8, outputTokens: 1, models: ["opus"] } },
 ] as const;
 
 const createProjectionTables = Effect.gen(function* () {
@@ -47,17 +51,17 @@ const createProjectionTables = Effect.gen(function* () {
     const lineage =
       thread.parent === null
         ? {}
-        : { parentThreadId: thread.parent, relationshipToParent: "subagent" };
+        : { parentThreadId: thread.parent, relationshipToParent: thread.relationship };
     yield* sql`INSERT INTO orchestration_v2_projection_threads VALUES (${thread.id}, ${JSON.stringify({ lineage })})`;
   }
 });
 
-const insertTurns = Effect.gen(function* () {
+const insertTurn = Effect.fnUntraced(function* (turn: (typeof TURNS)[number]) {
   const sql = yield* SqlClient.SqlClient;
-  for (const turn of TURNS) {
-    yield* sql`INSERT INTO orchestration_v2_projection_provider_turns VALUES (${turn.id}, ${turn.thread}, ${JSON.stringify({ turnTokenUsage: { usageStatus: "complete", usageScope: "main_agent", hasSubagents: false, ...turn.usage } })})`;
-  }
+  yield* sql`INSERT INTO orchestration_v2_projection_provider_turns VALUES (${turn.id}, ${turn.thread}, ${JSON.stringify({ turnTokenUsage: { usageStatus: "complete", usageScope: "main_agent", hasSubagents: false, ...turn.usage } })})`;
 });
+
+const insertTurns = Effect.forEach(TURNS, insertTurn, { discard: true });
 
 const readTotals = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
@@ -85,6 +89,7 @@ const readTotals = Effect.gen(function* () {
 
 const EXPECTED = {
   child: { self: 60, delegated: 5, delegatedThreads: 1, cached: 0, models: { sol: 65 } },
+  fork: { self: 9, delegated: 0, delegatedThreads: 0, cached: 0, models: { opus: 9 } },
   grandchild: { self: 5, delegated: 0, delegatedThreads: 0, cached: 0, models: { sol: 5 } },
   other: { self: 3, delegated: 0, delegatedThreads: 0, cached: 0, models: { unknown: 3 } },
   root: {
@@ -125,6 +130,39 @@ describe("ThreadTokenTotals", () => {
         });
       }
       assert.deepStrictEqual(yield* readTotals, EXPECTED);
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+  );
+
+  it.effect("refills totals when turns appear that they never counted", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* createProjectionTables;
+      yield* insertTurn(TURNS[0]);
+      yield* ensureTokenTotals(sql);
+      // An older build, without the totals, projects the other turns on the same database.
+      for (const turn of TURNS.slice(1)) yield* insertTurn(turn);
+      yield* ensureTokenTotals(sql);
+      assert.deepStrictEqual(yield* readTotals, EXPECTED);
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+  );
+
+  it.effect("keeps totals across starts while every turn was counted", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* createProjectionTables;
+      yield* ensureTokenTotals(sql);
+      for (const turn of TURNS) {
+        yield* insertTurn(turn);
+        yield* applyTurnSpend(sql, {
+          before: null,
+          after: { threadId: turn.thread, spend: spendOf(turn) },
+        });
+        yield* markTurnCounted(sql, turn.id);
+      }
+      // A marker the refill would erase.
+      yield* sql`UPDATE ${sql(TOKEN_TOTALS_TABLE)} SET models_json = '{"kept":1}' WHERE thread_id = 'other'`;
+      yield* ensureTokenTotals(sql);
+      assert.deepStrictEqual((yield* readTotals).other?.models, { kept: 1 });
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 

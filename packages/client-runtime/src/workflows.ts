@@ -151,9 +151,19 @@ export function listedWorkflowRuns(
   return { runs: showSkipped ? runs : runs.filter((run) => !hidden(run)), skipped };
 }
 
+const hasWorkingAgent = (node: WorkflowRunNode, workingRunIds: ReadonlySet<string>): boolean =>
+  workingRunIds.has(node.run.runId) ||
+  node.children.some((child) => hasWorkingAgent(child, workingRunIds));
+
+/** An ended run whose agent, or a sub-workflow's agent, was sent to again and works. */
+export const isWorkflowRunWorkingAgain = (
+  node: WorkflowRunNode,
+  workingRunIds: ReadonlySet<string>,
+): boolean => node.run.endedAt !== null && hasWorkingAgent(node, workingRunIds);
+
 /**
- * `workingRunIds` are ended runs whose agent thread was sent to again and works: they stay under
- * way until it stops.
+ * `workingRunIds` are ended runs whose agent thread was sent to again and works: they, and the
+ * runs they are sub-workflows of, stay under way until it stops.
  */
 export function groupWorkflowRuns(
   workflows: ReadonlyArray<WorkflowSummary>,
@@ -192,7 +202,7 @@ export function groupWorkflowRuns(
   };
   for (const root of roots.map(node)) {
     if (needsPerson(root)) needsYou.push(root);
-    else if (root.run.endedAt === null || workingRunIds.has(root.run.runId)) {
+    else if (root.run.endedAt === null || hasWorkingAgent(root, workingRunIds)) {
       sectionOf(root.run.workflow).active.push(root);
     } else sectionOf(root.run.workflow).finished.push(root);
   }

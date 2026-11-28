@@ -6,17 +6,28 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 import * as TokenUsage from "./TokenUsage.ts";
 
-// "lead" runs two steps in one thread; "build" delegated to "helper"; "remote" ran elsewhere.
+// "lead" runs two steps in one thread; "build" delegated to "helper" and was forked into "fork",
+// a conversation of its own; "remote" ran elsewhere. Run 2 reuses "helper"; run 3 retried a step.
 const THREADS = [
-  { id: "lead", parent: null, title: "Lead" },
-  { id: "build", parent: null, title: "Build" },
-  { id: "helper", parent: "build", title: "Helper" },
-  { id: "remote", parent: null, title: "Remote" },
-  { id: "chat", parent: null, title: "A chat" },
+  { id: "lead", parent: null, relationship: null, title: "Lead" },
+  { id: "build", parent: null, relationship: null, title: "Build" },
+  { id: "helper", parent: "build", relationship: "subagent", title: "Helper" },
+  { id: "fork", parent: "build", relationship: "fork", title: "Fork" },
+  { id: "remote", parent: null, relationship: null, title: "Remote" },
+  { id: "chat", parent: null, relationship: null, title: "A chat" },
+  { id: "retrier", parent: null, relationship: null, title: "Retrier" },
+] as const;
+
+const RUNS = [
+  { id: "run-1", startedAt: "2026-11-27T10:00:00Z" },
+  { id: "run-2", startedAt: "2026-11-27T12:00:00Z" },
+  { id: "run-3", startedAt: "2026-11-27T13:00:00Z" },
 ] as const;
 
 const STEPS = [
   {
+    run: "run-1",
+    attempts: 1,
     name: "plan",
     thread: "lead",
     from: "2026-11-27T10:00:00Z",
@@ -24,14 +35,51 @@ const STEPS = [
     env: null,
   },
   {
+    run: "run-1",
+    attempts: 1,
     name: "build",
     thread: "build",
     from: "2026-11-27T10:10:00Z",
     until: "2026-11-27T10:30:00Z",
     env: null,
   },
-  { name: "review", thread: "lead", from: "2026-11-27T10:30:00Z", until: null, env: null },
-  { name: "remote", thread: "remote", from: "2026-11-27T10:30:00Z", until: null, env: "env-2" },
+  {
+    run: "run-1",
+    attempts: 1,
+    name: "review",
+    thread: "lead",
+    from: "2026-11-27T10:30:00Z",
+    until: null,
+    env: null,
+  },
+  {
+    run: "run-1",
+    attempts: 1,
+    name: "remote",
+    thread: "remote",
+    from: "2026-11-27T10:30:00Z",
+    until: null,
+    env: "env-2",
+  },
+  {
+    run: "run-2",
+    attempts: 1,
+    name: "reuse",
+    thread: "helper",
+    from: "2026-11-27T12:00:00Z",
+    until: null,
+    env: null,
+  },
+  // Its row keeps only the last attempt's start.
+  {
+    run: "run-3",
+    attempts: 2,
+    name: "flaky",
+    thread: "retrier",
+    from: "2026-11-27T13:30:00Z",
+    until: null,
+    env: null,
+  },
 ] as const;
 
 const TURNS = [
@@ -85,19 +133,59 @@ const TURNS = [
     cached: 0,
     model: "opus",
   },
+  // Inside the build step, but a fork is not a delegate.
+  {
+    id: "t8",
+    thread: "fork",
+    at: "2026-11-27T10:15:00.000Z",
+    tokens: 30,
+    cached: 0,
+    model: "opus",
+  },
+  {
+    id: "t9",
+    thread: "helper",
+    at: "2026-11-27T12:01:00.000Z",
+    tokens: 5,
+    cached: 0,
+    model: "sol",
+  },
+  {
+    id: "t10",
+    thread: "retrier",
+    at: "2026-11-27T13:05:00.000Z",
+    tokens: 100,
+    cached: 0,
+    model: "sol",
+  },
+  {
+    id: "t11",
+    thread: "retrier",
+    at: "2026-11-27T13:31:00.000Z",
+    tokens: 50,
+    cached: 0,
+    model: "sol",
+  },
 ] as const;
 
 const seed = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   yield* sql`CREATE TABLE orchestration_v2_projection_threads (thread_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL)`;
   yield* sql`CREATE TABLE orchestration_v2_projection_provider_turns (provider_turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, started_at TEXT, completed_at TEXT, payload_json TEXT NOT NULL)`;
-  yield* sql`CREATE TABLE workflow_steps (run_id TEXT NOT NULL, name TEXT NOT NULL, thread_id TEXT, environment_id TEXT, started_at TEXT NOT NULL, ended_at TEXT, PRIMARY KEY (run_id, name))`;
+  yield* sql`CREATE TABLE workflow_runs (run_id TEXT PRIMARY KEY, started_at TEXT NOT NULL)`;
+  yield* sql`CREATE TABLE workflow_steps (run_id TEXT NOT NULL, name TEXT NOT NULL, thread_id TEXT, environment_id TEXT, started_at TEXT NOT NULL, ended_at TEXT, attempts INTEGER NOT NULL, PRIMARY KEY (run_id, name))`;
+  for (const run of RUNS) {
+    yield* sql`INSERT INTO workflow_runs VALUES (${run.id}, ${run.startedAt})`;
+  }
   for (const thread of THREADS) {
-    const lineage = thread.parent === null ? {} : { parentThreadId: thread.parent };
+    const lineage =
+      thread.parent === null
+        ? {}
+        : { parentThreadId: thread.parent, relationshipToParent: thread.relationship };
     yield* sql`INSERT INTO orchestration_v2_projection_threads VALUES (${thread.id}, ${JSON.stringify({ title: thread.title, lineage })})`;
   }
   for (const step of STEPS) {
-    yield* sql`INSERT INTO workflow_steps VALUES ('run-1', ${step.name}, ${step.thread}, ${step.env}, ${step.from}, ${step.until})`;
+    yield* sql`INSERT INTO workflow_steps VALUES (${step.run}, ${step.name}, ${step.thread}, ${step.env}, ${step.from}, ${step.until}, ${step.attempts})`;
   }
   for (const turn of TURNS) {
     const usage = {
@@ -128,10 +216,11 @@ describe("TokenUsage", () => {
         ],
         byStep: { plan: 100, build: 350, review: 20 },
       });
-      assert.deepStrictEqual(yield* tokenUsage.workflowRunTotals(["run-1", "run-2"]), {
-        "run-1": 470,
-      });
-      assert.strictEqual(yield* tokenUsage.workflowRun("run-2"), undefined);
+      assert.deepStrictEqual(
+        yield* tokenUsage.workflowRunTotals(["run-1", "run-2", "run-3", "run-4"]),
+        { "run-1": 470, "run-2": 5, "run-3": 150 },
+      );
+      assert.strictEqual(yield* tokenUsage.workflowRun("run-4"), undefined);
     }).pipe(Effect.provide(layer)),
   );
 
@@ -149,13 +238,27 @@ describe("TokenUsage", () => {
           threadId: "build",
           title: "Build",
           selfTokens: 300,
-          delegatedTokens: 50,
+          delegatedTokens: 55,
           delegatedThreads: 1,
+        },
+        {
+          threadId: "retrier",
+          title: "Retrier",
+          selfTokens: 150,
+          delegatedTokens: 0,
+          delegatedThreads: 0,
         },
         {
           threadId: "lead",
           title: "Lead",
           selfTokens: 120,
+          delegatedTokens: 0,
+          delegatedThreads: 0,
+        },
+        {
+          threadId: "fork",
+          title: "Fork",
+          selfTokens: 30,
           delegatedTokens: 0,
           delegatedThreads: 0,
         },
