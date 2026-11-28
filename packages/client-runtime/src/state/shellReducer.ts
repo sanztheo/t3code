@@ -129,11 +129,21 @@ export function mergeShellSnapshotProjects(
   return { ...next, projects: unchanged ? previous.projects : projects };
 }
 
+/**
+ * Several thread rows can share one sequence, such as the threads above one whose spend changed,
+ * and the live buffer may deliver them apart. A thread row holds the shell read at or after its
+ * sequence, so one at the held sequence still applies; any other event there is already held.
+ */
+const isStale = (event: ShellStreamEvent, sequence: number) =>
+  event.kind === "thread.updated" && event.location === "active"
+    ? event.sequence < sequence
+    : event.sequence <= sequence;
+
 export function applyShellStreamEvent(
   snapshot: OrchestrationV2ShellSnapshot,
   event: ShellStreamEvent,
 ): OrchestrationV2ShellSnapshot {
-  if (event.sequence <= snapshot.snapshotSequence) return snapshot;
+  if (isStale(event, snapshot.snapshotSequence)) return snapshot;
 
   switch (event.kind) {
     case "project.updated": {
@@ -161,7 +171,9 @@ export function applyShellStreamEvent(
           ? snapshot.threads.find((thread) => thread.id === event.thread.id)
           : undefined;
       if (existing !== undefined && sameThreadShell(existing, event.thread)) {
-        return { ...snapshot, snapshotSequence: event.sequence };
+        return event.sequence === snapshot.snapshotSequence
+          ? snapshot
+          : { ...snapshot, snapshotSequence: event.sequence };
       }
       const withoutThread = (threads: OrchestrationV2ShellSnapshot["threads"]) =>
         threads.filter((thread) => thread.id !== event.thread.id);
@@ -231,9 +243,7 @@ export function applyShellStreamEvents(
   const archivedThreads = batchRows(snapshot.archivedThreads);
   let sequence = snapshot.snapshotSequence;
   for (const event of events) {
-    // One batch can carry several rows at the same sequence, such as the threads above one whose
-    // spend changed; all of them apply, while anything the snapshot already holds stays stale.
-    if (event.sequence <= snapshot.snapshotSequence || event.sequence < sequence) continue;
+    if (isStale(event, snapshot.snapshotSequence) || event.sequence < sequence) continue;
     switch (event.kind) {
       case "project.updated":
         projects.set(retainRepositoryIdentity(projects.get(event.project.id), event.project));
@@ -263,12 +273,17 @@ export function applyShellStreamEvents(
     }
     sequence = event.sequence;
   }
-  if (sequence === snapshot.snapshotSequence) return snapshot;
-  return {
+  const next = {
     ...snapshot,
     snapshotSequence: sequence,
     projects: projects.finish(),
     threads: threads.finish(),
     archivedThreads: archivedThreads.finish(),
   };
+  const unchanged =
+    sequence === snapshot.snapshotSequence &&
+    next.projects === snapshot.projects &&
+    next.threads === snapshot.threads &&
+    next.archivedThreads === snapshot.archivedThreads;
+  return unchanged ? snapshot : next;
 }
