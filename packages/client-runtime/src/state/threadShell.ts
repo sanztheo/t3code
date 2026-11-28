@@ -19,7 +19,6 @@ import { Atom } from "effect/reactivity";
 import type { EnvironmentThreadShell, PendingSubagentRequest } from "./models.ts";
 import { presentThreadShell, threadRuntimeIsActive } from "./models.ts";
 import { hiddenThreadKeys, NO_HIDDEN_THREADS } from "./threadTagFilter.ts";
-import { isThreadWorking } from "./threadInbox.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 import type { EnvironmentConnectionPhase } from "../connection/presentation.ts";
 import {
@@ -691,25 +690,6 @@ export function createEnvironmentThreadShellAtoms(input: {
     return previousThreadShells;
   }).pipe(Atom.withLabel("environment-thread-shell-list"));
 
-  // A run that ended can have an agent thread someone sent to again; while it works, the run is
-  // still under way to a person, since its step threads are listed nowhere but in the run.
-  const workingWorkflowRunsAtom = Atom.family((environmentId: EnvironmentId) => {
-    let previous: ReadonlySet<string> = new Set();
-    return Atom.make((get) => {
-      const next = new Set<string>();
-      for (const thread of get(threadShellsAtom)) {
-        if (thread.workflowRun?.environmentId === environmentId && isThreadWorking(thread)) {
-          next.add(thread.workflowRun.runId);
-        }
-      }
-      if (next.size === previous.size && [...next].every((runId) => previous.has(runId))) {
-        return previous;
-      }
-      previous = next;
-      return next;
-    }).pipe(Atom.withLabel(`environment-working-workflow-runs:${environmentId}`));
-  });
-
   // Point reads and threadShellsAtom stay complete, so code that asks whether a thread
   // exists (outboxes, drafts, removals) never mistakes a hidden thread for a missing one.
   let previousHiddenThreadKeys: ReadonlySet<string> = NO_HIDDEN_THREADS;
@@ -838,7 +818,6 @@ export function createEnvironmentThreadShellAtoms(input: {
     environmentThreadRefsByProjectAtom,
     threadRefsAtom,
     threadShellsAtom,
-    workingWorkflowRunsAtom,
     visibleThreadShellsAtom,
     hiddenThreadKeysAtom,
     anyEnvironmentHidingAtom,

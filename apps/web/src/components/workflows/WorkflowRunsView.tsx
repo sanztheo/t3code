@@ -1,11 +1,5 @@
-import { useAtomValue } from "@effect/atom-react";
-import {
-  type EnvironmentId,
-  WORKFLOW_RUN_TOKEN_TOTALS_MAX,
-  type WorkflowRunSubject,
-} from "@t3tools/contracts";
+import { type EnvironmentId, type WorkflowRunSubject } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages } from "gt-react";
-import { formatTokens } from "@t3tools/shared/usageFormat";
 import { WorkflowIcon } from "lucide-react";
 import * as Schema from "effect/Schema";
 import { useState, type ReactNode } from "react";
@@ -14,7 +8,6 @@ import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { cn } from "../../lib/utils";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
-import { environmentThreadShells } from "../../state/threads";
 import { Button } from "../ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "../ui/empty";
 import { ScrollArea } from "../ui/scroll-area";
@@ -34,7 +27,6 @@ import {
   defaultWorkflowListTab,
   defaultWorkflowRunId,
   groupWorkflowRuns,
-  isWorkflowRunWorkingAgain,
   listedWorkflowRuns,
   workflowQuestionKinds,
   workflowReferenceThreadId,
@@ -109,25 +101,9 @@ export function WorkflowRunsView({
   readonly onSelect: (runId: string | null) => void;
   readonly onOpenThread: (runId: string, thread: WorkflowThreadTarget) => void;
   readonly onOpenReference: (runId: string, reference: WorkflowRunSubject) => void;
-  /** All the definition files, or `file` in the editor. */
-  readonly onOpenDefinitions: (file: string | null) => void;
+  readonly onOpenDefinitions: () => void;
 }) {
   const live = useEnvironmentQuery(serverEnvironment.workflowsLive({ environmentId, input: {} }));
-  const runTokens = useEnvironmentQuery(
-    serverEnvironment.workflowRunTokenTotals({
-      environmentId,
-      input: {
-        runIds: (live.data?.runs ?? [])
-          .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-          .slice(0, WORKFLOW_RUN_TOKEN_TOTALS_MAX)
-          .map((run) => run.runId)
-          .toSorted(),
-      },
-    }),
-  ).data;
-  const workingRunIds = useAtomValue(
-    environmentThreadShells.workingWorkflowRunsAtom(environmentId),
-  );
   const [pickedTab, setPickedTab] = useState<WorkflowListTab | null>(null);
   const [workflow, setWorkflow] = useState(EVERY_WORKFLOW);
   const [pickedKind, setPickedKind] = useLocalStorage(QUESTION_KIND_KEY, EVERY_KIND, Schema.String);
@@ -160,7 +136,7 @@ export function WorkflowRunsView({
             The last version that did keeps running.
           </T>
         </span>
-        <Button size="xs" variant="outline" onClick={() => onOpenDefinitions(null)}>
+        <Button size="xs" variant="outline" onClick={onOpenDefinitions}>
           <T>Open the file</T>
         </Button>
       </div>
@@ -206,7 +182,7 @@ export function WorkflowRunsView({
             <button
               type="button"
               className="underline underline-offset-2 hover:text-foreground"
-              onClick={() => onOpenDefinitions(null)}
+              onClick={onOpenDefinitions}
             >
               Definitions
             </button>
@@ -229,12 +205,7 @@ export function WorkflowRunsView({
     (run) => run.runId === selectedRunId && run.status === "skipped",
   );
   const visible = listedWorkflowRuns(snapshot.runs, showSkipped || openedSkipped);
-  const groups = groupWorkflowRuns(
-    snapshot.workflows,
-    visible.runs,
-    snapshot.questions,
-    workingRunIds,
-  );
+  const groups = groupWorkflowRuns(snapshot.workflows, visible.runs, snapshot.questions);
   const lists = workflowRunLists(groups);
   const all = allWorkflowRunNodes(groups);
   const section = groups.workflows.find((candidate) => candidate.name === workflow) ?? null;
@@ -440,8 +411,6 @@ export function WorkflowRunsView({
                       }
                       onSelect={openListed}
                       onOpenSubject={(subject) => onOpenReference(node.run.runId, subject)}
-                      tokens={runTokens?.[node.run.runId]}
-                      workingAgain={isWorkflowRunWorkingAgain(node, workingRunIds)}
                     />
                   ))}
                 </ul>
@@ -478,7 +447,6 @@ export function WorkflowRunsView({
               onSelect={onSelect}
               onOpenThread={(thread) => onOpenThread(shown.run.runId, thread)}
               onOpenReference={(reference) => onOpenReference(shown.run.runId, reference)}
-              onOpenDefinition={onOpenDefinitions}
             />
           )}
         </ScrollArea>
@@ -502,8 +470,6 @@ function WorkflowRunListItem({
   subjectOpen,
   onSelect,
   onOpenSubject,
-  tokens,
-  workingAgain,
 }: {
   readonly node: WorkflowRunNode;
   readonly current: boolean;
@@ -511,10 +477,6 @@ function WorkflowRunListItem({
   readonly subjectOpen: boolean;
   readonly onSelect: (runId: string | null) => void;
   readonly onOpenSubject: (subject: WorkflowRunSubject) => void;
-  /** What the run spent so far; absent until it spends. */
-  readonly tokens: number | undefined;
-  /** It ended, then someone sent to one of its agents, which is working. */
-  readonly workingAgain: boolean;
 }) {
   const { run } = node;
   const about = run.subject;
@@ -537,14 +499,7 @@ function WorkflowRunListItem({
         </span>
         <span className="truncate text-sm text-foreground">{run.title}</span>
         <span className="flex min-w-0 gap-1.5 text-xs text-muted-foreground">
-          <span className="min-w-0 flex-1 truncate">
-            {workingAgain
-              ? m(msg("Ended · an agent is working again", { $context: "workflow run row" }))
-              : workflowRunNow(node, m)}
-          </span>
-          {tokens === undefined ? null : (
-            <span className="shrink-0 tabular-nums">{formatTokens(tokens)}</span>
-          )}
+          <span className="min-w-0 flex-1 truncate">{workflowRunNow(node, m)}</span>
           <span className="shrink-0">
             <RelativeLabel value={run.updatedAt} />
           </span>
