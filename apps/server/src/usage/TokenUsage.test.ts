@@ -99,7 +99,7 @@ const STEPS = [
     name: "build",
     thread: "shared",
     from: "2026-11-27T14:30:00Z",
-    until: null,
+    until: "2026-11-27T14:35:00Z",
     env: null,
   },
   {
@@ -109,6 +109,16 @@ const STEPS = [
     thread: "shared",
     from: "2026-11-27T14:20:00Z",
     until: "2026-11-27T14:25:00Z",
+    env: null,
+  },
+  // Retried as well: the turns before its last attempt that no window holds go to "build" first.
+  {
+    run: "run-4",
+    attempts: 2,
+    name: "test",
+    thread: "shared",
+    from: "2026-11-27T14:45:00Z",
+    until: null,
     env: null,
   },
 ] as const;
@@ -203,6 +213,8 @@ const TURNS = [
       ["t13", "14:15", 30],
       ["t14", "14:21", 7],
       ["t15", "14:31", 50],
+      ["t16", "14:40", 4],
+      ["t17", "14:46", 9],
     ] as const
   ).map(([id, time, tokens]) => ({
     id,
@@ -264,12 +276,13 @@ describe("TokenUsage", () => {
       });
       assert.deepStrictEqual(
         yield* tokenUsage.workflowRunTotals(["run-1", "run-2", "run-3", "run-4", "run-5"]),
-        { "run-1": 470, "run-2": 5, "run-3": 150, "run-4": 187 },
+        { "run-1": 470, "run-2": 5, "run-3": 150, "run-4": 200 },
       );
       assert.deepStrictEqual((yield* tokenUsage.workflowRun("run-4"))?.byStep, {
         plan: 100,
         build: 80,
         side: 7,
+        test: 13,
       });
       assert.strictEqual(yield* tokenUsage.workflowRun("run-5"), undefined);
     }).pipe(Effect.provide(layer)),
@@ -295,7 +308,7 @@ describe("TokenUsage", () => {
         {
           threadId: "shared",
           title: "Shared",
-          selfTokens: 187,
+          selfTokens: 200,
           delegatedTokens: 0,
           delegatedThreads: 0,
         },

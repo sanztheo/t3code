@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -145,9 +146,10 @@ def translated_highlights(output, expected_count):
         # llama-completion writes both the answer and its end marker to generic stdout.
         highlights = json.loads(output.removesuffix("[end of text]").strip())
         return format_highlights(highlights, expected_count)
-    except ValueError:
+    except ValueError as error:
         # The pinned model answers the same for the same sources, so a rejected translation would
         # block every build until upstream moves; the folded changelog still links every change.
+        print(f"::warning::Release notes fell back to the changelog link: {error}", file=sys.stderr)
         return UNTRANSLATED
 
 
