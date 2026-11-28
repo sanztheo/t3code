@@ -13,7 +13,7 @@ from pathlib import Path
 UPSTREAM = "pingdotgg/t3code"
 FOLDED = "<details><summary>Full changelog</summary>"
 NO_CHANGES = "Aucun changement visible dans l’application de bureau."
-UNTRANSLATED = "Les changements de cette version sont listés dans le journal complet ci-dessous."
+UNTRANSLATED = "Les changements de cette version sont listés sur sa page GitHub."
 COMMIT = re.compile(r"^(\w+)(?:\(([^)]+)\))?!?:")
 MOBILE = {"mobile", "android", "ios", "expo"}
 INTERNAL = {"arbre", "build", "ci", "chore", "docs", "refactor", "style", "test"}
