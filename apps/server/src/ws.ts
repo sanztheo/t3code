@@ -164,7 +164,7 @@ import {
   toShellApplicationEvent,
   type ShellApplicationEvent,
 } from "./orchestration-v2/ShellStream.ts";
-import { ancestorThreadIds } from "./orchestration-v2/ThreadTokenTotals.ts";
+import { shownAncestorThreadIds } from "./orchestration-v2/ThreadTokenTotals.ts";
 import { ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION } from "./orchestration-v2/ProjectionStore.ts";
 import {
   coalesceLiveUpdatedEvents,
@@ -1263,7 +1263,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       const spentIn = events.flatMap((stored) =>
         "aggregateKind" in stored || stored.spent !== true ? [] : [stored],
       );
-      const delegatingThreadIds = yield* ancestorThreadIds(
+      const delegatingThreadIds = yield* shownAncestorThreadIds(
         sql,
         spentIn.map((stored) => stored.event.threadId),
       ).pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));

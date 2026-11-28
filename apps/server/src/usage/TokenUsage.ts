@@ -125,7 +125,7 @@ const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
       ? []
       : yield* sql<Pick<AgentStep, "run_id" | "thread_id" | "started_at" | "ended_at">>`
           SELECT run_id, thread_id, started_at, ended_at FROM workflow_steps
-          WHERE ${sql.in("thread_id", retriedThreadIds)}
+          WHERE ${sql.in("thread_id", retriedThreadIds)} AND environment_id IS NULL
         `;
   const windowOf = (step: Pick<AgentStep, "started_at" | "ended_at">) => ({
     from: Date.parse(step.started_at),
