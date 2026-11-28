@@ -74,8 +74,8 @@ export const TURN_TOKENS_SQL = `(
   + COALESCE(json_extract(p.payload_json, '$.turnTokenUsage.otherUsage.inputTokens'), 0)
   + COALESCE(json_extract(p.payload_json, '$.turnTokenUsage.otherUsage.outputTokens'), 0)
 )`;
-const TURN_CACHED_TOKENS_SQL = `COALESCE(json_extract(p.payload_json, '$.turnTokenUsage.cachedInputTokens'), 0)`;
-const TURN_MODEL_SQL = `COALESCE(
+export const TURN_CACHED_TOKENS_SQL = `COALESCE(json_extract(p.payload_json, '$.turnTokenUsage.cachedInputTokens'), 0)`;
+export const TURN_MODEL_SQL = `COALESCE(
   json_extract(p.payload_json, '$.turnTokenUsage.models[0]'),
   json_extract(p.payload_json, '$.model'),
   '${UNKNOWN_MODEL}'
