@@ -84,9 +84,9 @@ const delegationTrees = Effect.fn("TokenUsage.delegationTrees")(function* (
 
 /**
  * The turns each agent step of these runs spent: its thread's and its delegated threads' turns
- * that started while the step ran. A retried step keeps only its last attempt's start, so before
- * it the step also takes the run's turns on its thread that no other step's window holds. Steps in
- * a linked environment ran elsewhere and are left out.
+ * that started while the step ran. A retried step keeps only its last attempt's start, so the run's
+ * turns on its thread that no step's window holds go to the first retried step after them. Steps
+ * in a linked environment ran elsewhere and are left out.
  */
 const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
   sql: SqlClient.SqlClient,
@@ -120,21 +120,33 @@ const runSpending = Effect.fn("TokenUsage.runSpending")(function* (
     from: Date.parse(step.started_at),
     until: step.ended_at === null ? Number.POSITIVE_INFINITY : Date.parse(step.ended_at),
   });
-  // Earlier attempts left no window: they own the turns no other step of the run on that thread ran.
-  const ranOtherStep = (step: AgentStep, at: number) =>
-    steps.some((other) => {
-      if (other === step || other.run_id !== step.run_id || other.thread_id !== step.thread_id) {
-        return false;
-      }
-      const window = windowOf(other);
-      return at >= window.from && at < window.until;
-    });
+  const siblingsOf = (step: AgentStep) =>
+    steps.filter(
+      (other) =>
+        other !== step && other.run_id === step.run_id && other.thread_id === step.thread_id,
+    );
+  // Earlier attempts left no window. A turn no step's window holds belongs to the first retried
+  // step on that thread whose last attempt began after it.
+  const ownsUnwindowedTurn = (step: AgentStep, at: number) => {
+    const siblings = siblingsOf(step);
+    if (siblings.some((other) => at >= windowOf(other).from && at < windowOf(other).until)) {
+      return false;
+    }
+    return !siblings.some(
+      (other) =>
+        other.attempts > 1 &&
+        at < windowOf(other).from &&
+        windowOf(other).from < windowOf(step).from,
+    );
+  };
   return steps.map((step) => {
     const { from, until } = windowOf(step);
     const ownsTurnAt = (at: number) =>
       at < until &&
       (at >= from ||
-        (step.attempts > 1 && at >= Date.parse(step.run_started_at) && !ranOtherStep(step, at)));
+        (step.attempts > 1 &&
+          at >= Date.parse(step.run_started_at) &&
+          ownsUnwindowedTurn(step, at)));
     const stepTurns = (trees.get(step.thread_id) ?? []).flatMap((threadId) =>
       (turnsByThread.get(threadId) ?? []).filter(
         (turn) => turn.started_at !== null && ownsTurnAt(Date.parse(turn.started_at)),
