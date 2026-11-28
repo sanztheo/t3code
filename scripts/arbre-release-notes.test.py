@@ -39,6 +39,17 @@ class ReleaseNotesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             notes.format_highlights([line], 2)
 
+    def test_a_rejected_translation_points_to_the_changelog_instead_of_blocking(self):
+        self.assertEqual(
+            notes.translated_highlights('["Choisissez une note interne."][end of text]', 1),
+            notes.UNTRANSLATED,
+        )
+        self.assertEqual(notes.translated_highlights("not json", 1), notes.UNTRANSLATED)
+        self.assertEqual(
+            notes.translated_highlights('["Vous pouvez copier un tableau en image."]', 1),
+            "- Vous pouvez copier un tableau en image.",
+        )
+
     def test_translation_sources_have_no_commit_wrapper_or_example(self):
         self.assertEqual(
             notes.translation_sources(["fix(web): keep numbered lists (#44318)"], ""),
