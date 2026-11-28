@@ -417,7 +417,23 @@ describe("applyShellStreamEvents", () => {
       "parent total moved",
     ]);
     expect(next.snapshotSequence).toBe(11);
-    expect(applyShellStreamEvents(next, [update(11, { ...a, title: "replayed" })])).toBe(next);
+    expect(applyShellStreamEvents(next, [update(11, { ...a, title: "child spent" })])).toBe(next);
+  });
+
+  it("applies a row at the held sequence that the live buffer delivered apart", () => {
+    const seed = { ...v2ShellSnapshot, threads: [a, b], snapshotSequence: 10 };
+    const child = applyShellStreamEvent(seed, update(11, { ...a, title: "child spent" }));
+    const parent = applyShellStreamEvent(child, update(11, { ...b, title: "parent total moved" }));
+    expect(parent.threads.map((thread) => thread.title)).toEqual([
+      "child spent",
+      "parent total moved",
+    ]);
+    expect(
+      applyShellStreamEvents(child, [
+        update(11, { ...b, title: "parent total moved" }),
+        update(11, { ...a, title: "child spent" }),
+      ]).threads,
+    ).toEqual(parent.threads);
   });
 
   it("keeps collection identities for equal rows and rejects stale deltas without indexing", () => {
