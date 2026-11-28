@@ -28,6 +28,7 @@ import {
   shouldPublishShellApplicationEvent,
   skipUnchangedThreadShells,
   toShellApplicationEvent,
+  withDelegatingThreadRefreshes,
 } from "./ShellStream.ts";
 
 const emptyShellSnapshot = {
@@ -67,6 +68,25 @@ describe("subagent shell events", () => {
     expect(shouldPublishShellApplicationEvent(stored("child", "run.updated"), subagents)).toBe(
       true,
     );
+  });
+
+  it("refreshes delegating threads at the batch's last sequence, keeping their own events'", () => {
+    const thread = (threadId: string) => ({ threadId: ThreadId.make(threadId) });
+    const events = [
+      { sequence: 11, event: thread("child"), spent: true as const },
+      { sequence: 12, event: thread("parent") },
+      { sequence: 13, event: thread("child") },
+    ];
+    // The parent was archived at 12; its removal must not move behind the child's row at 13.
+    expect(
+      withDelegatingThreadRefreshes(events, [ThreadId.make("parent"), ThreadId.make("root")]).map(
+        (stored) => ["aggregateKind" in stored ? "" : stored.event.threadId, stored.sequence],
+      ),
+    ).toEqual([
+      ["parent", 12],
+      ["child", 13],
+      ["root", 13],
+    ]);
   });
 
   it("passes a subagent turn that reports usage, marked so its delegating threads refresh", () => {

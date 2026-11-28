@@ -24,6 +24,7 @@ const RUNS = [
   { id: "run-2", startedAt: "2026-11-27T12:00:00Z" },
   { id: "run-3", startedAt: "2026-11-27T13:00:00Z" },
   { id: "run-4", startedAt: "2026-11-27T14:00:00Z" },
+  { id: "run-5", startedAt: "2026-11-27T14:12:00Z" },
 ] as const;
 
 const STEPS = [
@@ -109,6 +110,16 @@ const STEPS = [
     thread: "shared",
     from: "2026-11-27T14:20:00Z",
     until: "2026-11-27T14:25:00Z",
+    env: null,
+  },
+  // Another run used the thread between "build"'s attempts.
+  {
+    run: "run-5",
+    attempts: 1,
+    name: "borrow",
+    thread: "shared",
+    from: "2026-11-27T14:12:00Z",
+    until: "2026-11-27T14:14:00Z",
     env: null,
   },
   // Retried as well: the turns before its last attempt that no window holds go to "build" first.
@@ -215,6 +226,7 @@ const TURNS = [
       ["t15", "14:31", 50],
       ["t16", "14:40", 4],
       ["t17", "14:46", 9],
+      ["t18", "14:13", 3],
     ] as const
   ).map(([id, time, tokens]) => ({
     id,
@@ -275,8 +287,8 @@ describe("TokenUsage", () => {
         byStep: { plan: 100, build: 350, review: 20 },
       });
       assert.deepStrictEqual(
-        yield* tokenUsage.workflowRunTotals(["run-1", "run-2", "run-3", "run-4", "run-5"]),
-        { "run-1": 470, "run-2": 5, "run-3": 150, "run-4": 200 },
+        yield* tokenUsage.workflowRunTotals(["run-1", "run-2", "run-3", "run-4", "run-5", "run-6"]),
+        { "run-1": 470, "run-2": 5, "run-3": 150, "run-4": 200, "run-5": 3 },
       );
       assert.deepStrictEqual((yield* tokenUsage.workflowRun("run-4"))?.byStep, {
         plan: 100,
@@ -284,7 +296,7 @@ describe("TokenUsage", () => {
         side: 7,
         test: 13,
       });
-      assert.strictEqual(yield* tokenUsage.workflowRun("run-5"), undefined);
+      assert.strictEqual(yield* tokenUsage.workflowRun("run-6"), undefined);
     }).pipe(Effect.provide(layer)),
   );
 
@@ -308,7 +320,7 @@ describe("TokenUsage", () => {
         {
           threadId: "shared",
           title: "Shared",
-          selfTokens: 200,
+          selfTokens: 203,
           delegatedTokens: 0,
           delegatedThreads: 0,
         },

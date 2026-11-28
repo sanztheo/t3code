@@ -147,7 +147,7 @@ import * as FeedbackStore from "./feedback/FeedbackStore.ts";
 import * as GuestShareService from "./guest/GuestShareService.ts";
 import {
   bufferShellLiveStream,
-  coalesceShellApplicationEvents,
+  withDelegatingThreadRefreshes,
   composeShellStreamWithEnrichment,
   dedupeShellEnrichment,
   loadOlderSettledThreadsPage,
@@ -1263,17 +1263,14 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       const spentIn = events.flatMap((stored) =>
         "aggregateKind" in stored || stored.spent !== true ? [] : [stored],
       );
-      // The refetched shell is current, so it may carry the batch's last sequence.
-      const spendSequence = Math.max(0, ...events.map((stored) => stored.sequence));
-      // A delegated thread's spend changes the totals of every thread above it.
-      const delegatingThreads = (yield* ancestorThreadIds(
+      const delegatingThreadIds = yield* ancestorThreadIds(
         sql,
         spentIn.map((stored) => stored.event.threadId),
-      ).pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []))).map((threadId) => ({
-        sequence: spendSequence,
-        event: { threadId: ThreadId.make(threadId) },
-      }));
-      const coalesced = coalesceShellApplicationEvents([...events, ...delegatingThreads]);
+      ).pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
+      const coalesced = withDelegatingThreadRefreshes(
+        events,
+        delegatingThreadIds.map((threadId) => ThreadId.make(threadId)),
+      );
       const threadIds = coalesced.flatMap((stored) =>
         "aggregateKind" in stored ? [] : [stored.event.threadId],
       );
